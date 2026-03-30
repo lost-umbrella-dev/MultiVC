@@ -1,0 +1,43 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+authors = ["TOwInOK"]
+repository = "https://github.com/TOwInOK/MultiVC"
+description = "todo"
+publish = false
+keywords = []
+categories = []
+readme = "README.md"
+
+[workspace.dependencies]
+# Errors
+thiserror = "2.0.18"
+# ==== async ====
+# io
+tokio = "1.50.0"
+tokio-util = "0.7.18"
+# compute
+rayon = "1.11.0"
+
+# ==== Tracing ====
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+
+# UUID
+uuid = { version = "1.22.0", features = ["v7", "serde"] }
+# Time
+chrono = { version = "0.4.44", default-features = false }
+# ==== Serde ====
+serde = "1.0.228"
+serde_json = "1.0.149"
+
+[workspace.lints.clippy]
+# https://users.rust-lang.org/t/to-string-vs-to-owned-for-string-literals/1441
+str_to_string = "warn"
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs_dep)'] }
