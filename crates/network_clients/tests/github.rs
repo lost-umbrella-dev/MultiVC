@@ -3,7 +3,7 @@ use tracing::{error, info};
 
 /// Создает тестовый клиент Github
 fn create_test_client() -> GithubClient {
-    GithubClient::new("MihailRis".to_string(), "voxelcore".to_string()).expect("Не удалось создать Github клиент")
+    GithubClient::new("MihailRis".to_owned(), "voxelcore".to_owned()).expect("Не удалось создать Github клиент")
 }
 
 use tracing::subscriber::DefaultGuard;
@@ -132,7 +132,6 @@ async fn test_download_latest_release() {
                 bytes.len()
             );
             assert!(!bytes.is_empty(), "Скачанные данные не должны быть пустыми");
-            assert!(bytes.len() > 0, "Размер скачанных данных должен быть больше 0");
         },
         Err(e) => {
             error!("Ошибка при скачивании релиза: {:?}", e);

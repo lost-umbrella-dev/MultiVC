@@ -1,7 +1,6 @@
 use network_clients::clients::voxelworld::client::VoxelworldClient;
 use network_clients::clients::voxelworld::client::modifications::{ModSort, ModsQueryParams};
 use network_clients::error::ClientError;
-use tokio;
 use tracing::{error, warn};
 
 use tracing::subscriber::DefaultGuard;
@@ -81,7 +80,7 @@ async fn test_get_mods_with_query() {
     let _guard = init_test_tracing();
     let client = create_test_client();
     let params = ModsQueryParams {
-        title: Some("chests".to_string()),
+        title: Some("chests".to_owned()),
         tags: None,
         page: None,
         sort: None,
@@ -557,7 +556,7 @@ async fn test_download_mod_version() {
             let header = &bytes[..std::cmp::min(4, bytes.len())];
             // ZIP файлы начинаются с магических байтов 0x50 0x4B 0x03 0x04 или 0x50 0x4B 0x05 0x06
             assert!(
-                header == &[0x50, 0x4B, 0x03, 0x04] || header == &[0x50, 0x4B, 0x05, 0x06],
+                header == [0x50, 0x4B, 0x03, 0x04] || header == [0x50, 0x4B, 0x05, 0x06],
                 "Скачанные данные должны быть в формате ZIP"
             );
         },
@@ -595,9 +594,8 @@ async fn test_client_with_auth_token() {
     let mut _client = create_test_client();
 
     // Устанавливаем тестовый токен (в реальных тестах должен быть валидный токен)
-    let test_token = std::env::var("VOXELWORLD_TEST_TOKEN");
-    if test_token.is_ok() {
-        _client = create_test_client_with_token(test_token.unwrap());
+    if let Ok(test_token) = std::env::var("VOXELWORLD_TEST_TOKEN") {
+        _client = create_test_client_with_token(test_token);
 
         // Проверяем, что запросы с авторизацией работают
         let list_params = ModsQueryParams {
