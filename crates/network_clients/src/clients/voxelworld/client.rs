@@ -3,7 +3,10 @@
 pub mod modifications;
 
 use crate::clients::USER_AGENT;
-use reqwest::Client;
+use reqwest::{
+    Client,
+    header::{ACCEPT, HeaderMap},
+};
 use tracing::Span;
 
 const BASE_URL: &str = "https://api.voxelworld.ru/v2";
@@ -22,11 +25,15 @@ pub struct VoxelworldClient {
 impl VoxelworldClient {
     /// Создает новый экземпляр клиента VoxelWorld API
     pub fn new(auth_token: Option<String>) -> Self {
+        let mut headers = HeaderMap::new();
+        // TODO: add error for json return's errors
+        headers.insert(ACCEPT, "application/json".parse().unwrap());
         Self {
             client: Client::builder()
                 .user_agent(USER_AGENT)
                 .connection_verbose(true)
                 .https_only(true)
+                .default_headers(headers)
                 .build()
                 .expect("Failed to create HTTP client"),
             base_url: BASE_URL,
