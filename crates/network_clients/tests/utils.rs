@@ -7,10 +7,13 @@ pub fn init_test_tracing() -> DefaultGuard {
 
     let subscriber = fmt()
         .with_env_filter(filter)
-        .pretty()
+        .with_ansi_sanitization(true)
+        .compact()
         .with_test_writer()
         .with_target(false)
         .with_thread_names(false)
+        .with_line_number(false)
+        .with_file(false)
         .without_time()
         .finish();
 

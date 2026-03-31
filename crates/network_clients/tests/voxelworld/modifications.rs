@@ -1,7 +1,7 @@
 use crate::utils::init_test_tracing;
 use network_clients::clients::voxelworld::client::VoxelworldClient;
 use network_clients::clients::voxelworld::client::modifications::{ModSort, ModsQueryParams};
-use network_clients::clients::voxelworld::error::VoxelworldError;
+use network_clients::error::ClientError;
 use tokio;
 use tracing::{error, warn};
 
@@ -269,11 +269,8 @@ async fn test_get_mod_not_found() {
     let result = client.get_mod_by_id_or_slug("nonexistent-mod-99999").await;
 
     match result {
-        Err(VoxelworldError::NotFound { resource }) => {
-            assert!(
-                resource.contains("nonexistent-mod-99999"),
-                "Ошибка должна содержать идентификатор мода"
-            );
+        Err(ClientError::NotFound) => {
+            // Ожидаемая ошибка для несуществующего мода
         },
         Ok(_) => {
             panic!("Ожидалась ошибка NotFound для несуществующего мода");
@@ -417,15 +414,8 @@ async fn test_get_mod_version_not_found() {
     let result = client.get_mod_version("some-mod", 999999).await;
 
     match result {
-        Err(VoxelworldError::NotFound { resource }) => {
-            assert!(
-                resource.contains("some-mod"),
-                "Ошибка должна содержать идентификатор мода"
-            );
-            assert!(
-                resource.contains("999999"),
-                "Ошибка должна содержать идентификатор версии"
-            );
+        Err(ClientError::NotFound) => {
+            // Ожидаемая ошибка для несуществующей версии
         },
         Ok(_) => {
             panic!("Ожидалась ошибка NotFound для несуществующей версии");
@@ -491,11 +481,8 @@ async fn test_get_mod_latest_version_not_found() {
     let result = client.get_mod_latest_version("nonexistent-mod-99999").await;
 
     match result {
-        Err(VoxelworldError::NotFound { resource }) => {
-            assert!(
-                resource.contains("nonexistent-mod-99999"),
-                "Ошибка должна содержать идентификатор мода"
-            );
+        Err(ClientError::NotFound) => {
+            // Ожидаемая ошибка для несуществующего мода
         },
         Ok(_) => {
             panic!("Ожидалась ошибка NotFound для несуществующего мода");
@@ -568,12 +555,8 @@ async fn test_download_mod_version_not_found() {
     let result = client.download_mod_version(999999, "99.99.99").await;
 
     match result {
-        Err(VoxelworldError::NotFound { resource }) => {
-            assert!(
-                resource.contains("999999"),
-                "Ошибка должна содержать идентификатор мода"
-            );
-            assert!(resource.contains("99.99.99"), "Ошибка должна содержать номер версии");
+        Err(ClientError::NotFound) => {
+            // Ожидаемая ошибка для несуществующей версии
         },
         Ok(_) => {
             panic!("Ожидалась ошибка NotFound для несуществующей версии");

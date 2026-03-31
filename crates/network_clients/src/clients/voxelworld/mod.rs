@@ -3,7 +3,6 @@
 //! Этот модуль предоставляет типы данных и функции для взаимодействия с VoxelWorld API.
 
 pub mod client;
-pub mod error;
 pub mod types;
 
 use serde::{Deserialize, Serialize};
