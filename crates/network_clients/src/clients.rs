@@ -27,7 +27,7 @@ pub trait Client {
 
     /// Проверка элемента на соответствие хэшу провайдера
     ///
-    /// **note**: [Item] хранит хэш
+    /// **note**: `Item` хранит хэш
     fn validate(&self, item: &Self::Item, data: Bytes) -> Result<bool>;
 }
 
