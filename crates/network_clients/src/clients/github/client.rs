@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use crate::{
     clients::github::{
         asset_matches_current_system,
@@ -8,10 +10,14 @@ use crate::{
 use bytes::Bytes;
 use reqwest::Client;
 use tracing::{Span, instrument};
+use url::Url;
 
 use crate::clients::USER_AGENT;
 
-const BASE_URL: &str = "https://api.github.com/repos/";
+static BASE: OnceLock<Url> = OnceLock::new();
+fn base_url() -> &'static Url {
+    BASE.get_or_init(|| Url::parse("https://api.github.com").expect("invalid BASE_URL"))
+}
 
 /// Клиент для взаимодействия с Github
 pub struct GithubClient {
@@ -30,16 +36,21 @@ impl GithubClient {
                 .connection_verbose(true)
                 .https_only(true)
                 .build()?,
-            span: tracing::info_span!(
-                "network_client",
-                client = "github",
-                repository = "{}/{}",
-                repo_owner,
-                repo
-            ),
+            span: tracing::info_span!("network_client", client = "github", repo_owner, repo),
             repo_owner,
             repo,
         })
+    }
+
+    fn releases_url(&self) -> Url {
+        let mut url = base_url().clone();
+        url.path_segments_mut()
+            .expect("invalid BASE_URL")
+            .push("repos")
+            .push(&self.repo_owner)
+            .push(&self.repo)
+            .push("releases");
+        url
     }
 
     #[instrument(
@@ -49,15 +60,12 @@ impl GithubClient {
         err,
     )]
     pub async fn get_all_releases(&self) -> Result<Vec<Release>> {
-        let resp = self
-            .client
-            .get(format!("{}/{}/{}/releases", BASE_URL, self.repo_owner, self.repo))
-            .send()
-            .await?;
+        let url = self.releases_url();
+        let text = self.client.get(url.as_str()).send().await?.text().await?;
 
-        let releases = serde_json::from_str::<Vec<Release>>(&resp.text().await?)?;
-
-        Ok(releases)
+        serde_json::from_str::<Vec<Release>>(&text)
+            .inspect_err(|e| tracing::error!(%url, body = text, error = %e, "failed to parse releases"))
+            .map_err(Into::into)
     }
 
     #[instrument(

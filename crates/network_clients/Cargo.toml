@@ -23,10 +23,12 @@ strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+url = "2"
 
 [dev-dependencies]
 tracing-subscriber = { version = "0.3.23", features = ["fmt", "env-filter", "chrono"] }
 tokio = { workspace = true, features = ["full"] }
+tracing-tree = "0.3"
 
 [lints]
 workspace = true

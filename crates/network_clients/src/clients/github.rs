@@ -41,7 +41,7 @@ impl Client for GithubClient {
                     name: a.name.to_owned(),
                     version: x.tag_name.to_owned(),
                     url: a.url.to_owned(),
-                    hash: Some(crate::hash::Hash::SHA256(a.digest.to_owned())),
+                    hash: a.digest.to_owned(),
                     size: a.size,
                     dependencies: None,
                     supported_engine: None,
