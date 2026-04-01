@@ -1,4 +1,4 @@
-use network_clients::clients::github::GithubClient;
+use network_clients::clients::github::client::GithubClient;
 use tracing::{error, info};
 
 /// Создает тестовый клиент Github

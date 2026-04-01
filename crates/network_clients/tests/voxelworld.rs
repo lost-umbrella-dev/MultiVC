@@ -1,5 +1,4 @@
-use network_clients::clients::voxelworld::client::VoxelworldClient;
-use network_clients::clients::voxelworld::client::modifications::{ModSort, ModsQueryParams};
+use network_clients::clients::voxelworld::client::{ModSort, VoxelworldClient, VoxelworldClientListOptions};
 use network_clients::error::ClientError;
 use tracing::{error, warn};
 
@@ -41,7 +40,7 @@ fn create_test_client_with_token(token: String) -> VoxelworldClient {
 async fn test_get_mods_no_params() {
     let _guard = init_test_tracing();
     let client = create_test_client();
-    let params = ModsQueryParams {
+    let params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: None,
@@ -79,7 +78,7 @@ async fn test_get_mods_no_params() {
 async fn test_get_mods_with_query() {
     let _guard = init_test_tracing();
     let client = create_test_client();
-    let params = ModsQueryParams {
+    let params = VoxelworldClientListOptions {
         title: Some("chests".to_owned()),
         tags: None,
         page: None,
@@ -106,7 +105,7 @@ async fn test_get_mods_with_sort() {
     let client = create_test_client();
 
     // Тестируем сортировку по популярноси
-    let params_popular = ModsQueryParams {
+    let params_popular = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: None,
@@ -117,7 +116,7 @@ async fn test_get_mods_with_sort() {
     assert!(result.is_ok(), "Не удалось получить моды с сортировкой по популярности");
 
     // Тестируем сортировку по дате добавления
-    let params_likes = ModsQueryParams {
+    let params_likes = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: None,
@@ -132,7 +131,7 @@ async fn test_get_mods_with_sort() {
     );
 
     // Тестируем сортировку по дате обновления
-    let params_updated = ModsQueryParams {
+    let params_updated = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: None,
@@ -146,7 +145,7 @@ async fn test_get_mods_with_sort() {
     );
 
     // Тестируем сортировку по подписке
-    let params_updated = ModsQueryParams {
+    let params_updated = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: None,
@@ -164,7 +163,7 @@ async fn test_get_mods_with_pagination() {
     let client = create_test_client();
 
     // Получаем первую страницу
-    let params_page1 = ModsQueryParams {
+    let params_page1 = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -175,7 +174,7 @@ async fn test_get_mods_with_pagination() {
     assert!(result_page1.is_ok(), "Не удалось получить первую страницу");
 
     // Получаем вторую страницу
-    let params_page2 = ModsQueryParams {
+    let params_page2 = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(2),
@@ -193,7 +192,7 @@ async fn test_get_mods_with_tags() {
     let _guard = init_test_tracing();
     let client = create_test_client();
 
-    let params = ModsQueryParams {
+    let params = VoxelworldClientListOptions {
         title: None,
         tags: Some(vec![87, 10]),
         page: None,
@@ -211,7 +210,7 @@ async fn test_get_mod_by_id() {
     let client = create_test_client();
 
     // Сначала получаем список модов, чтобы найти существующий ID
-    let list_params = ModsQueryParams {
+    let list_params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -250,7 +249,7 @@ async fn test_get_mod_by_slug() {
     let client = create_test_client();
 
     // Сначала получаем список модов, чтобы найти существующий slug
-    let list_params = ModsQueryParams {
+    let list_params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -308,7 +307,7 @@ async fn test_get_mod_versions() {
     let client = create_test_client();
 
     // Сначала получаем список модов, чтобы найти существующий ID
-    let list_params = ModsQueryParams {
+    let list_params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -348,7 +347,7 @@ async fn test_get_mod_versions_with_pagination() {
     let client = create_test_client();
 
     // Сначала получаем список модов
-    let list_params = ModsQueryParams {
+    let list_params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -376,7 +375,7 @@ async fn test_get_mod_version() {
     let client = create_test_client();
 
     // Сначала получаем список модов
-    let list_params = ModsQueryParams {
+    let list_params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -453,7 +452,7 @@ async fn test_get_mod_latest_version() {
     let client = create_test_client();
 
     // Сначала получаем список модов
-    let list_params = ModsQueryParams {
+    let list_params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -520,7 +519,7 @@ async fn test_download_mod_version() {
     let client = create_test_client();
 
     // Сначала получаем список модов
-    let list_params = ModsQueryParams {
+    let list_params = VoxelworldClientListOptions {
         title: None,
         tags: None,
         page: Some(1),
@@ -598,7 +597,7 @@ async fn test_client_with_auth_token() {
         _client = create_test_client_with_token(test_token);
 
         // Проверяем, что запросы с авторизацией работают
-        let list_params = ModsQueryParams {
+        let list_params = VoxelworldClientListOptions {
             title: None,
             tags: None,
             page: None,

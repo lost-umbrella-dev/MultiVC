@@ -1,38 +1,8 @@
-use crate::clients::voxelworld::client::VoxelworldClient;
+use crate::clients::voxelworld::client::{VoxelworldClient, VoxelworldClientListOptions};
 use crate::clients::voxelworld::{DataResponse, ModDetail, ModListItem, VersionDetailResource, VersionResource};
 use crate::error::{Result, response_error};
 use bytes::Bytes;
-use serde::Deserialize;
 use tracing::instrument;
-
-/// Параметры для сортировки списка модов
-#[derive(Debug, Clone, Copy, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum ModSort {
-    #[default]
-    /// Сортировка по популярности
-    Popular,
-    /// Сортировка по подпискам
-    Subscribe,
-    /// Сортировка по дате добавления
-    DateAdd,
-    /// Сортировка по дате обновления
-    DateUpdate,
-}
-
-/// Параметры запроса для получения списка модов
-#[derive(Debug, Clone, Deserialize)]
-pub struct ModsQueryParams {
-    /// Строка поиска (максимальная длина 255)
-    pub title: Option<String>,
-    /// Список тегов для фильтрации
-    pub tags: Option<Vec<i64>>,
-    /// Номер страницы (по умолчанию 1)
-    pub page: Option<u32>,
-    /// Параметр сортировки (по умолчанию "popular")
-    // save as u8
-    pub sort: Option<ModSort>,
-}
 
 impl VoxelworldClient {
     #[instrument(
@@ -50,7 +20,7 @@ impl VoxelworldClient {
         )
     )]
     /// Получает список модов с возможностью фильтрации и сортировки
-    pub async fn get_mods(&self, params: &ModsQueryParams) -> Result<Vec<ModListItem>> {
+    pub async fn get_mods(&self, params: &VoxelworldClientListOptions) -> Result<Vec<ModListItem>> {
         let url = format!("{}/mods", self.base_url);
 
         let mut request = self.client.get(&url);
