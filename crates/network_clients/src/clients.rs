@@ -44,7 +44,7 @@ pub trait Client {
 
         let link = &(item).url;
 
-        let mut hasher = self.validate_begin(&item);
+        let mut hasher = self.validate_begin(item);
 
         let mut response = client.get(link).send().await?;
         let total = response.content_length();
@@ -61,7 +61,7 @@ pub trait Client {
                 progress.update(DownloadProgress { downloaded, total });
             }
         }
-        if !self.validate_finish(&item, hasher) {
+        if !self.validate_finish(item, hasher) {
             return Err(ClientError::HashMismatch(item.hash.clone().unwrap()));
         }
 

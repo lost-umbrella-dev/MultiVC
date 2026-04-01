@@ -9,7 +9,7 @@ where
 {
     let s: Option<String> = Option::deserialize(deserializer)?;
     Ok(s.map(|s| s.split_once(':').map(|(_, v)| v.to_owned()).unwrap_or(s))
-        .map(|x| Hash::SHA256(x)))
+        .map(Hash::SHA256))
 }
 
 #[derive(Debug, Deserialize, Clone)]
