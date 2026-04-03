@@ -11,6 +11,8 @@ categories.workspace = true
 readme.workspace = true
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
+clients.workspace = true
 
 [lints]
 workspace = true

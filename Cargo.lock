@@ -130,6 +130,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "clients"
+version = "0.0.0"
+dependencies = [
+ "bytes",
+ "chrono",
+ "digest",
+ "hex",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "strum",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-tree",
+ "url",
+]
+
+[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -151,6 +172,10 @@ dependencies = [
 [[package]]
 name = "composer"
 version = "0.0.0"
+dependencies = [
+ "clients",
+ "serde",
+]
 
 [[package]]
 name = "const-oid"
@@ -768,19 +793,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
-name = "lib"
-version = "0.0.0"
-dependencies = [
- "chrono",
- "digest",
- "hex",
- "serde",
- "serde_json",
- "sha2",
- "strum",
-]
-
-[[package]]
 name = "libc"
 version = "0.2.183"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -866,28 +878,6 @@ dependencies = [
  "security-framework 2.11.1",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "network_clients"
-version = "0.0.0"
-dependencies = [
- "bytes",
- "chrono",
- "digest",
- "hex",
- "lib",
- "reqwest",
- "serde",
- "serde_json",
- "sha2",
- "strum",
- "thiserror 2.0.18",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "tracing-tree",
- "url",
 ]
 
 [[package]]

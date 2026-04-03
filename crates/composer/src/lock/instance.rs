@@ -1,6 +1,5 @@
+use clients::item::ItemDependence;
 use serde::{Deserialize, Serialize};
-
-use crate::item::ItemDependence;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instance {

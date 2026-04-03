@@ -1,5 +1,5 @@
-use network_clients::clients::voxelworld::client::{ModSort, VoxelworldClient, VoxelworldClientListOptions};
-use network_clients::error::ClientError;
+use clients::clients::voxelworld::client::{ModSort, VoxelworldClient, VoxelworldClientListOptions};
+use clients::prelude::*;
 use tracing::{error, warn};
 
 use tracing::subscriber::DefaultGuard;

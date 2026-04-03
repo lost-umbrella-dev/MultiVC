@@ -1,6 +1,6 @@
-use network_clients::clients::Client;
-use network_clients::clients::github::client::GithubClient;
-use network_clients::clients::github::{GitHubGetOptions, GitHubListOptions};
+use clients::clients::github::client::GithubClient;
+use clients::clients::github::{GitHubGetOptions, GitHubListOptions};
+use clients::prelude::*;
 use tracing::{error, info};
 
 /// Создает тестовый клиент Github

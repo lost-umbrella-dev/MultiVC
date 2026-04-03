@@ -1,15 +1,25 @@
 use digest::DynDigest;
 
-use lib::item::Item;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tracing::instrument;
 
-use crate::error::{ClientError, Result};
+use crate::{
+    error::{ClientError, Result},
+    item::Item,
+};
 
 pub mod github;
 pub mod voxelworld;
 
+use serde::{Deserialize, Serialize};
+use strum::VariantArray;
+
 pub static USER_AGENT: &str = "MultiVC/0.0 (discord@towinok)";
+
+#[derive(Debug, Clone, Copy, PartialEq, VariantArray, Serialize, Deserialize)]
+pub enum Clients {
+    Github,
+}
 
 #[allow(async_fn_in_trait)]
 pub trait Client {

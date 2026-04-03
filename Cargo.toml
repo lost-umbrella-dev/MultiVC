@@ -41,6 +41,10 @@ sha2 = "0.11.0"
 digest = "0.11.2"
 hex = "0.4.3"
 
+# ==== self-crates ====
+clients = { path = "crates/clients" }
+composer   = { path = "crates/composer" }
+
 [workspace.lints.clippy]
 # https://users.rust-lang.org/t/to-string-vs-to-owned-for-string-literals/1441
 str_to_string = "warn"

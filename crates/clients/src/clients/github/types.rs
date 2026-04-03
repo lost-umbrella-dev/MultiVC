@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
-use lib::hash::Hash;
 use serde::Deserialize;
+
+use crate::hash::Hash;
 
 fn strip_hash_prefix_opt<'de, D>(deserializer: D) -> std::result::Result<Option<Hash>, D::Error>
 where
