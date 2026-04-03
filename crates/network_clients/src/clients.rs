@@ -1,6 +1,6 @@
 use digest::DynDigest;
-use lib::hash::Hash;
-use serde::{Deserialize, Serialize};
+
+use lib::item::Item;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tracing::instrument;
 
@@ -111,22 +111,4 @@ impl DownloadProgress {
 
 pub trait ProgressSink: Send + Sync {
     fn update(&self, progress: DownloadProgress);
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Item {
-    /// Name of the item
-    pub name: String,
-    /// Version, tag, etc...
-    pub version: String,
-    /// Download url
-    pub url: String,
-    /// Hash
-    pub hash: Option<Hash>,
-    /// Size in bytes
-    pub size: u64,
-    /// Dependencies of the item
-    pub dependencies: Option<Vec<Item>>,
-    /// Supported engine versions
-    pub supported_engine: Option<Vec<String>>,
 }

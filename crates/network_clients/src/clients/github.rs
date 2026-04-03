@@ -43,8 +43,8 @@ impl Client for GithubClient {
                     url: a.url.to_owned(),
                     hash: a.digest.to_owned(),
                     size: a.size,
-                    dependencies: None,
-                    supported_engine: None,
+                    dependencies: Vec::new(),
+                    supported_engine: Vec::new(),
                 })
             })
             .collect())
