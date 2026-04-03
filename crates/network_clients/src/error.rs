@@ -1,7 +1,6 @@
+use lib::hash::Hash;
 use reqwest::StatusCode;
 use thiserror::Error;
-
-use crate::hash::Hash;
 
 #[derive(Error, Debug)]
 pub enum ClientError {

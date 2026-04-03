@@ -1,12 +1,10 @@
 use digest::DynDigest;
+use lib::hash::Hash;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tracing::instrument;
 
-use crate::{
-    error::{ClientError, Result},
-    hash::Hash,
-};
+use crate::error::{ClientError, Result};
 
 pub mod github;
 pub mod voxelworld;
