@@ -1,4 +1,5 @@
 //! Библиотека lock файлов
+pub mod clients;
 pub mod hash;
 pub mod item;
 pub mod lock;

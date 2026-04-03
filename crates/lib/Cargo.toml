@@ -13,6 +13,7 @@ readme.workspace = true
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 strum = { workspace = true, features = ["derive"] }
+chrono = { workspace = true, features = ["serde"] }
 serde_json.workspace = true
 sha2.workspace = true
 digest.workspace = true

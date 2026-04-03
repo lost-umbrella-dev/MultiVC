@@ -1,6 +1,7 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::hash::Hash;
+use crate::{clients::Clients, hash::Hash};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Item {
@@ -32,4 +33,14 @@ pub struct ItemDependence {
     /// example version: "1.1.1",
     /// auto bump: "^1.1" => auto update for any "1.1.x" versions
     pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemLock {
+    /// Meta
+    pub item: Item,
+    /// Откуда/Кем скачан
+    pub provider: Clients,
+    /// Когда был скачан/обновлён
+    pub timestamp: DateTime<Utc>,
 }
