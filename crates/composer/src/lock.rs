@@ -79,10 +79,10 @@ where
         .await
     }
 
-    /// Принимает вектор [DownloadRequest], при скачивании идёт сохранение на диск через writer
+    /// Принимает вектор [`DownloadRequest`](crate::utils::download::DownloadRequest), при скачивании идёт сохранение на диск через writer
     /// и параллельно для каждого создаётся digest для последующего сохранения в [LockMap] и валидации.
     ///
-    /// Каждый [DownloadRequest] содержит [Item] и опциональный per-item [ProgressSink],
+    /// Каждый [`DownloadRequest`](crate::utils::download::DownloadRequest) содержит [Item] и опциональный per-item [`ProgressSink`](clients::prelude::ProgressSink),
     /// что позволяет отслеживать прогресс каждого скачивания независимо.
     ///
     /// workflow для архивов:

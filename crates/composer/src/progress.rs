@@ -143,7 +143,7 @@ impl ProgressSink for BridgeSink {
 }
 
 impl ProgressBridge {
-    /// Создаёт `Box<dyn ProgressSink>` для передачи в [`DownloadRequest::with_progress`].
+    /// Создаёт `Box<dyn ProgressSink>` для передачи в [`DownloadRequest::with_progress`](crate::utils::download::DownloadRequest::with_progress).
     ///
     /// Можно вызывать несколько раз — все sink'и пишут в один и тот же bridge.
     pub fn sink(&self) -> Box<dyn ProgressSink> {
