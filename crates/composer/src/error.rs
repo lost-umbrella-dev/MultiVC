@@ -23,6 +23,8 @@ pub enum ComposerError {
         #[source]
         source: ArchiveError,
     },
+    #[error("Core executable not found in `{path}`")]
+    CoreExecutableNotFound { path: PathBuf },
 }
 
 #[derive(Error, Debug)]

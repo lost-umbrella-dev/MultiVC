@@ -2,16 +2,26 @@ use clients::item::Item;
 use futures_util::{StreamExt, stream};
 
 use crate::State;
+use crate::downloads::{DownloadRequest, PARALLELISM};
 use crate::error::{ComposerError, Result};
 use crate::lock::Lock;
 use crate::lock::core::CoresLock;
-use crate::utils::download::{self, DownloadRequest};
+
+use super::pipeline;
 
 impl State {
-    /// Устанавливает ядра: скачивает, распаковывает, хэширует и регистрирует в lock.
+    /// Устанавливает ядра.
+    ///
+    /// Параллельно скачивает, распаковывает, переименовывает исполняемый
+    /// файл в `core.{ext}`, хэширует и регистрирует в lock.
     ///
     /// Каждый [`DownloadRequest`] может содержать per-item
     /// [`ProgressSink`](clients::prelude::ProgressSink) для отслеживания прогресса.
+    ///
+    /// Возвращает:
+    /// - `Ok(None)` — все элементы установлены успешно.
+    /// - `Ok(Some(failures))` — часть элементов не удалось установить.
+    /// - `Err(...)` — фатальная ошибка (например, невозможно создать директорию).
     pub async fn install_cores(&self, requests: Vec<DownloadRequest>) -> Result<Option<Vec<(Item, ComposerError)>>> {
         let total = requests.len();
         tracing::info!(total, "starting cores install");
@@ -22,9 +32,9 @@ impl State {
         let results = stream::iter(
             requests
                 .into_iter()
-                .map(|request| async move { download::download_item::<CoresLock, _>(client, request).await }),
+                .map(|request| async move { pipeline::download_and_prepare(client, request).await }),
         )
-        .buffer_unordered(download::PARALLELISM)
+        .buffer_unordered(PARALLELISM)
         .collect::<Vec<_>>()
         .await;
 
