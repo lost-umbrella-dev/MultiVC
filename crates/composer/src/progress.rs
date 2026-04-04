@@ -1,3 +1,4 @@
+// TODO: перенести в GUI крейт
 /*
   Как используется
 
@@ -22,18 +23,35 @@
  let request = DownloadRequest::with_progress(item, bridge.sink());
  lock.download(&client, vec![request]).await?;
 */
-//!  UI Thread                              Background Thread
-//! ─────────                              ─────────────────
-//! bridge.fraction()                      bridge.sink() → Box<dyn ProgressSink>
-//!     │                                       │
-//!     │  Relaxed atomic read                  │  .update(DownloadProgress)
-//!     ▼                                       ▼
-//! ┌──────────────────────────────────────────────┐
-//! │            ProgressBridgeInner               │
-//! │  downloaded: AtomicU64                       │
-//! │  total:      AtomicU64                       │
-//! │  repaint:    Arc<dyn Fn() + Send + Sync>  ←──── будит UI
-//! └──────────────────────────────────────────────┘
+/*
+  UI Thread                                Background Thread
+─────────                                ─────────────────
+
+1. Создаёт RepaintHook
+       │
+2. Создаёт ProgressBridge::new(hook)
+       │
+       ├─── bridge.clone() → хранит у себя     bridge.sink() ──→ Box<dyn ProgressSink>
+       │    для чтения                                │
+       │                                              ▼
+       │                               3. DownloadRequest::with_progress(item, sink)
+       │                                              │
+       │                               4. lock.download(&client, vec![request])
+       │                                              │
+       │                               5. client.download() качает чанки:
+       │                                     chunk → sink.update(DownloadProgress)
+       │                                                    │
+       │                                        ┌───────────┘
+       │                                        ▼
+       │                               AtomicU64::store(downloaded)
+       │                               AtomicU64::store(total)
+       │                               (repaint)()  ←── будит UI
+       │                                        │
+       ▼                                        │
+6. bridge.fraction() ──→ AtomicU64::load ◄──────┘
+       │
+7. Рисует progress bar
+*/
 
 use std::sync::{
     Arc,

@@ -50,7 +50,7 @@ where
     async fn get(&self, options: Self::GetOptions) -> Result<Option<Item>>;
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct DownloadProgress {
     pub downloaded: u64,
     pub total: Option<u64>,
