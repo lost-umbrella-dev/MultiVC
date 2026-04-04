@@ -80,8 +80,7 @@ where
         let results = stream::iter(
             items
                 .iter()
-                .cloned()
-                .map(|item| async move { download::download_item::<Self, C>(client, item).await }),
+                .map(|item| async move { download::download_item::<Self, C>(client, item.clone()).await }),
         )
         .buffer_unordered(download::PARALLELISM)
         .collect::<Vec<_>>()

@@ -44,7 +44,7 @@ pub fn hash_directory_into(
             source,
         })?;
 
-    entries.sort_by(|a, b| a.path().cmp(&b.path()));
+    entries.sort_by_key(|a| a.path());
 
     for entry in entries {
         let path = entry.path();

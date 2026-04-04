@@ -9,8 +9,8 @@ pub mod utils;
 
 /// Предстваляет in-memory хранилище состояния
 pub struct State {
-    clients: Clients,
-    instances: InstancesLock,
-    cores: CoresLock,
-    contents: ContentsLock,
+    _clients: Clients,
+    _instances: InstancesLock,
+    _cores: CoresLock,
+    _contents: ContentsLock,
 }
