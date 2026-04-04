@@ -31,10 +31,8 @@ pub async fn rename(extract_dir: &Path) -> Result<()> {
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
         if path.is_file() {
-            let matches = match path.extension().and_then(|e| e.to_str()) {
-                Some(e) if e.eq_ignore_ascii_case(extension) => true,
-                _ => false,
-            };
+            let matches =
+                matches!(path.extension().and_then(|e| e.to_str()), Some(e) if e.eq_ignore_ascii_case(extension));
             if matches {
                 found = Some(path);
                 break;

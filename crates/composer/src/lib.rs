@@ -10,6 +10,8 @@ use crate::lock::instances::InstancesLock;
 use crate::lock::{Lock, ValidateReason};
 
 mod downloads;
+
+pub use downloads::DownloadRequest;
 pub mod error;
 pub mod item;
 pub mod lock;
