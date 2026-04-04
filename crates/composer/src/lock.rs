@@ -40,9 +40,6 @@ where
     /// Возвращает список элементов в lock-файле
     fn items(&self) -> &LockMap;
 
-    /// Возвращает мутабельный список элементов в lock-файле
-    fn items_mut(&mut self) -> &mut LockMap;
-
     /// Загружает lock-файл из диска
     async fn load() -> Result<Self> {
         let span = tracing::debug_span!(
@@ -101,7 +98,7 @@ where
     /// - `Ok(Some(failures))`, если часть items завершилась ошибкой (с причиной);
     /// - `Err(...)`, если произошла фатальная ошибка batch-уровня.
     async fn download<C>(
-        &mut self,
+        &self,
         client: &C,
         requests: Vec<download::DownloadRequest>,
     ) -> Result<Option<Vec<(Item, ComposerError)>>>
@@ -153,7 +150,7 @@ where
             let failed_count = failed.len();
 
             for (hash, lock_item) in successful {
-                self.items_mut().insert(hash, lock_item);
+                self.items().insert(hash, lock_item);
             }
 
             if failed.is_empty() {
@@ -185,7 +182,7 @@ where
     /// Возвращает список элементов, которые не найдены в папке извлекая их из lock
     ///
     /// Использует хэш из lock-файла для поиска в папке
-    async fn validate_dir(&mut self) -> Result<Vec<ValidateReason>> {
+    async fn validate_dir(&self) -> Result<Vec<ValidateReason>> {
         let span = tracing::info_span!(
             parent: &Self::span(),
             "lock.validate_dir",
@@ -238,7 +235,12 @@ where
             let invalid = reasons.len();
             tracing::info!(valid, invalid, total, "directory validation complete",);
 
-            *self.items_mut() = valid_items;
+            // Replace items atomically: clear old entries and insert validated ones.
+            // DashMap supports interior mutability, so &self is sufficient.
+            self.items().clear();
+            for entry in valid_items.into_iter() {
+                self.items().insert(entry.0, entry.1);
+            }
 
             Ok(reasons)
         }

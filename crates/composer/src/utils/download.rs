@@ -207,9 +207,9 @@ async fn rename_or_accept_existing(extract_path: &Path, final_path: &Path, dir_h
         Ok(())
     } else {
         tracing::error!(path = %final_path.display(), "failed to commit directory");
-        Err(ComposerError::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!("failed to commit directory to `{}`", final_path.display()),
-        )))
+        Err(ComposerError::Io(std::io::Error::other(format!(
+            "failed to commit directory to `{}`",
+            final_path.display()
+        ))))
     }
 }
