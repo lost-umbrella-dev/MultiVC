@@ -8,7 +8,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use tracing::Span;
 
 use crate::{
-    error::{Result, ValidationError, ValidationErrors},
+    error::{ComposerError, Result, ValidationError, ValidationErrors},
     item::{LockItem, LockMap},
     utils::{download, validate},
 };
@@ -56,8 +56,11 @@ where
         Ok(())
     }
 
-    /// Принимает слайс из [Item], при скачивании идёт сохранение на диск через writer и параллельно
-    /// для каждого создаётся digest для последующего сохранения в [LockMap] и валидации
+    /// Принимает вектор [DownloadRequest], при скачивании идёт сохранение на диск через writer
+    /// и параллельно для каждого создаётся digest для последующего сохранения в [LockMap] и валидации.
+    ///
+    /// Каждый [DownloadRequest] содержит [Item] и опциональный per-item [ProgressSink],
+    /// что позволяет отслеживать прогресс каждого скачивания независимо.
     ///
     /// workflow для архивов:
     /// 1. Запрашивает файл во временной дирректории
@@ -69,18 +72,22 @@ where
     ///
     /// Возвращает:
     /// - `Ok(None)`, если все items успешно обработаны;
-    /// - `Ok(Some(items))`, если часть items завершилась ошибкой;
+    /// - `Ok(Some(failures))`, если часть items завершилась ошибкой (с причиной);
     /// - `Err(...)`, если произошла фатальная ошибка batch-уровня.
-    async fn download<C>(&mut self, client: &C, items: &[Item]) -> Result<Option<Vec<Item>>>
+    async fn download<C>(
+        &mut self,
+        client: &C,
+        requests: Vec<download::DownloadRequest>,
+    ) -> Result<Option<Vec<(Item, ComposerError)>>>
     where
         C: ClientDownload + ClientGeneral + Sync,
     {
         tokio::fs::create_dir_all(Self::folder_name()).await?;
 
         let results = stream::iter(
-            items
-                .iter()
-                .map(|item| async move { download::download_item::<Self, C>(client, item.clone()).await }),
+            requests
+                .into_iter()
+                .map(|request| async move { download::download_item::<Self, C>(client, request).await }),
         )
         .buffer_unordered(download::PARALLELISM)
         .collect::<Vec<_>>()
@@ -92,7 +99,7 @@ where
         for result in results {
             match result {
                 Ok((hash, lock_item)) => successful.push((hash, lock_item)),
-                Err(item) => failed.push(item),
+                Err((item, error)) => failed.push((item, error)),
             }
         }
 
@@ -141,7 +148,7 @@ where
         }
 
         if !fatal_errors.is_empty() {
-            return Err(ValidationErrors(fatal_errors).into());
+            return Err(ComposerError::Validation(ValidationErrors(fatal_errors)));
         }
 
         *self.items_mut() = valid_items;

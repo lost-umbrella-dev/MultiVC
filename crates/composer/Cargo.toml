@@ -15,11 +15,11 @@ serde = { workspace = true, features = ["derive"] }
 clients.workspace = true
 clap = { version = "4", features = ["derive"] }
 thiserror.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["fs", "rt"] }
 tracing.workspace = true
 toml = "1.1.2"
 futures-util = "0.3.32"
-chrono = { workspace = true, features = ["serde"] }
+chrono = { workspace = true, features = ["serde", "clock"] }
 dashmap = { version = "6.1.0", features = ["serde"] }
 digest.workspace = true
 hex.workspace = true

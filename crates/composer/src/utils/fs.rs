@@ -1,25 +1,13 @@
-use std::{
-    io::Read,
-    path::{Path, PathBuf},
-};
+use std::{io::Read, path::Path};
 
 use clients::hash::Hash;
 use digest::DynDigest;
 use sha2::{Digest as ShaDigest, Sha256};
 
-use crate::{error::ValidationError, lock::Lock};
+use crate::error::ValidationError;
 
-pub fn item_path<L>(hash: &Hash) -> PathBuf
-where
-    L: Lock,
-{
-    let file_name = match hash {
-        Hash::SHA256(value) => format!("sha256-{value}"),
-        Hash::SHA512(value) => format!("sha512-{value}"),
-    };
-
-    L::folder_name().join(file_name)
-}
+// Re-export for backward compatibility (moved to hash.rs)
+pub use super::hash::item_path;
 
 /// Вычисляет хеш директории и сравнивает с заданным
 pub fn hash_directory(path: &Path, hash: &Hash) -> std::result::Result<bool, ValidationError> {

@@ -15,6 +15,22 @@ pub enum ComposerError {
     Client(#[from] ClientError),
     #[error(transparent)]
     Validation(#[from] ValidationErrors),
+    #[error(transparent)]
+    ValidationSingle(#[from] ValidationError),
+    #[error("Failed to extract archive `{path}`")]
+    Archive {
+        path: PathBuf,
+        #[source]
+        source: ArchiveError,
+    },
+}
+
+#[derive(Error, Debug)]
+pub enum ArchiveError {
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Zip(#[from] zip::result::ZipError),
 }
 
 #[derive(Error, Debug)]

@@ -5,7 +5,7 @@ pub mod modifications;
 use crate::clients::USER_AGENT;
 use reqwest::{
     Client as ReqwestClient,
-    header::{ACCEPT, HeaderMap},
+    header::{ACCEPT, HeaderMap, HeaderValue},
 };
 use serde::Deserialize;
 use tracing::Span;
@@ -27,8 +27,7 @@ impl VoxelworldClient {
     /// Создает новый экземпляр клиента VoxelWorld API
     pub fn new(auth_token: Option<String>) -> Self {
         let mut headers = HeaderMap::new();
-        // TODO: add error for json return's errors
-        headers.insert(ACCEPT, "application/json".parse().unwrap());
+        headers.insert(ACCEPT, HeaderValue::from_static("application/json"));
         Self {
             client: ReqwestClient::builder()
                 .user_agent(USER_AGENT)
