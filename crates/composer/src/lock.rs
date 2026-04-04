@@ -1,8 +1,4 @@
-use clients::{
-    hash::Hash,
-    item::Item,
-    prelude::{ClientDownload, ClientGeneral},
-};
+use clients::hash::Hash;
 use futures_util::{StreamExt, stream};
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{Instrument, Span};
@@ -10,7 +6,7 @@ use tracing::{Instrument, Span};
 use crate::{
     error::{ComposerError, Result, ValidationError, ValidationErrors},
     item::{LockItem, LockMap},
-    utils::{download, validate},
+    utils::validate,
 };
 
 pub mod content;
@@ -26,7 +22,7 @@ pub enum ValidateReason {
 #[allow(async_fn_in_trait)]
 pub trait Lock
 where
-    Self: Sized + DeserializeOwned + Serialize,
+    Self: Sized + DeserializeOwned + Serialize + Default,
 {
     /// Возвращает scouped-span для логирования
     fn span() -> Span;
@@ -40,7 +36,9 @@ where
     /// Возвращает список элементов в lock-файле
     fn items(&self) -> &LockMap;
 
-    /// Загружает lock-файл из диска
+    /// Загружает lock-файл из диска.
+    ///
+    /// Если файл не найден — возвращает `Self::default()` (первый запуск) и сохраняет на диске.
     async fn load() -> Result<Self> {
         let span = tracing::debug_span!(
             parent: &Self::span(),
@@ -50,10 +48,20 @@ where
 
         async {
             tracing::debug!("loading lock file");
-            let bytes = tokio::fs::read(Self::file_name()).await?;
-            let lock: Self = toml::from_slice(&bytes)?;
-            tracing::debug!(items = lock.items().len(), "lock file loaded");
-            Ok(lock)
+            match tokio::fs::read(Self::file_name()).await {
+                Ok(bytes) => {
+                    let lock: Self = toml::from_slice(&bytes)?;
+                    tracing::debug!(items = lock.items().len(), "lock file loaded");
+                    Ok(lock)
+                },
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    tracing::debug!("lock file not found, creating default");
+                    let lock = Self::default();
+                    lock.save().await?;
+                    Ok(lock)
+                },
+                Err(e) => Err(e.into()),
+            }
         }
         .instrument(span)
         .await
@@ -79,99 +87,37 @@ where
         .await
     }
 
-    /// Принимает вектор [`DownloadRequest`](crate::utils::download::DownloadRequest), при скачивании идёт сохранение на диск через writer
-    /// и параллельно для каждого создаётся digest для последующего сохранения в [LockMap] и валидации.
+    /// Удаляет элемент из lock-файла и его директорию с диска.
     ///
-    /// Каждый [`DownloadRequest`](crate::utils::download::DownloadRequest) содержит [Item] и опциональный per-item [`ProgressSink`](clients::prelude::ProgressSink),
-    /// что позволяет отслеживать прогресс каждого скачивания независимо.
-    ///
-    /// workflow для архивов:
-    /// 1. Запрашивает файл во временной дирректории
-    /// 2. Скачивает файл в эту дирректорию
-    /// 3. Далее распаковываем архив (при скачивании хэш уже проверен)
-    /// 4. Создаём хэш распакованной папки
-    /// 5. Переносим папку в репозиторий `Lock` файла с именем хэша
-    /// 6. Сохраняем в [LockMap]
-    ///
-    /// Возвращает:
-    /// - `Ok(None)`, если все items успешно обработаны;
-    /// - `Ok(Some(failures))`, если часть items завершилась ошибкой (с причиной);
-    /// - `Err(...)`, если произошла фатальная ошибка batch-уровня.
-    async fn download<C>(
-        &self,
-        client: &C,
-        requests: Vec<download::DownloadRequest>,
-    ) -> Result<Option<Vec<(Item, ComposerError)>>>
-    where
-        C: ClientDownload + ClientGeneral + Sync,
-    {
-        let total = requests.len();
-        let span = tracing::info_span!(
+    /// Возвращает удалённый элемент, или `None` если элемент не найден.
+    /// Lock-файл **не** сохраняется — вызывающий код решает когда вызвать `save()`.
+    async fn remove(&self, hash: &Hash) -> Result<Option<LockItem>> {
+        let span = tracing::debug_span!(
             parent: &Self::span(),
-            "lock.download",
-            total,
-            parallelism = download::PARALLELISM,
+            "lock.remove",
+            hash = %hash,
         );
 
         async {
-            tracing::info!(total, "starting batch download");
+            let removed = self.items().remove(hash).map(|(_, item)| item);
 
-            tokio::fs::create_dir_all(Self::folder_name()).await?;
-
-            let results = stream::iter(
-                requests
-                    .into_iter()
-                    .map(|request| async move { download::download_item::<Self, C>(client, request).await }),
-            )
-            .buffer_unordered(download::PARALLELISM)
-            .collect::<Vec<_>>()
-            .await;
-
-            let mut successful = Vec::new();
-            let mut failed = Vec::new();
-
-            for result in results {
-                match result {
-                    Ok((hash, lock_item)) => successful.push((hash, lock_item)),
-                    Err((item, error)) => failed.push((item, error)),
-                }
-            }
-
-            for (hash, lock_item) in successful.iter() {
+            if let Some(ref item) = removed {
                 tracing::debug!(
-                    name = %lock_item.item.name,
-                    version = %lock_item.item.version,
-                    hash = %hash,
-                    "item downloaded successfully",
+                    name = %item.item.name,
+                    version = %item.item.version,
+                    "item removed from lock",
                 );
-            }
 
-            let successful_count = successful.len();
-            let failed_count = failed.len();
-
-            for (hash, lock_item) in successful {
-                self.items().insert(hash, lock_item);
-            }
-
-            if failed.is_empty() {
-                tracing::info!(successful = successful_count, "batch download complete — all succeeded");
-                Ok(None)
-            } else {
-                for (item, error) in &failed {
-                    tracing::warn!(
-                        name = %item.name,
-                        version = %item.version,
-                        error = %error,
-                        "item download failed",
-                    );
+                let path = crate::utils::hash::item_path::<Self>(hash);
+                if tokio::fs::try_exists(&path).await? {
+                    tokio::fs::remove_dir_all(&path).await?;
+                    tracing::debug!(path = %path.display(), "directory removed");
                 }
-                tracing::warn!(
-                    successful = successful_count,
-                    failed = failed_count,
-                    "batch download complete — some items failed",
-                );
-                Ok(Some(failed))
+            } else {
+                tracing::debug!("item not found in lock");
             }
+
+            Ok(removed)
         }
         .instrument(span)
         .await

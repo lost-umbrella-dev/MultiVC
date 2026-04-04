@@ -17,7 +17,7 @@ pub struct InstancesItem {
     pub banner: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Представляет метаданные всех инстансов
 pub struct InstancesLock {
     #[serde(flatten)]

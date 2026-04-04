@@ -4,7 +4,7 @@ use tracing::Span;
 use crate::item::LockMap;
 use crate::lock::Lock;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 /// Представялет lock файл cores
 pub struct CoresLock {
     #[serde(flatten)]
