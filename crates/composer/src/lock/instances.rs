@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstanceMeta {
+/// Представляет метаданные инстанса
+pub struct InstancesItem {
     /// Название инстенса
     pub name: String,
     /// Иконка (base64)
@@ -11,8 +12,9 @@ pub struct InstanceMeta {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InstancesMeta {
+/// Представляет метаданные всех инстансов
+pub struct InstancesLock {
     #[serde(flatten)]
     /// Список инстансов
-    pub instances: Vec<InstanceMeta>,
+    pub items: Vec<InstancesItem>,
 }

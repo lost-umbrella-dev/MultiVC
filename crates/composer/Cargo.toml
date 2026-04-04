@@ -13,6 +13,19 @@ readme.workspace = true
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 clients.workspace = true
+clap = { version = "4", features = ["derive"] }
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+toml = "1.1.2"
+futures-util = "0.3.32"
+chrono = { workspace = true, features = ["serde"] }
+dashmap = { version = "6.1.0", features = ["serde"] }
+digest.workspace = true
+hex.workspace = true
+sha2.workspace = true
+tempfile = "3.27.0"
+zip = "2"
 
 [lints]
 workspace = true

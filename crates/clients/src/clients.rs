@@ -4,6 +4,7 @@ use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tracing::instrument;
 
 use crate::{
+    clients::github::client::GithubClient,
     error::{ClientError, Result},
     item::Item,
 };
@@ -17,26 +18,105 @@ use strum::VariantArray;
 pub static USER_AGENT: &str = "MultiVC/0.0 (discord@towinok)";
 
 #[derive(Debug, Clone, Copy, PartialEq, VariantArray, Serialize, Deserialize)]
-pub enum Clients {
+/// Перечисление вариантов клиентов
+pub enum ClientVariant {
     Github,
 }
 
+/// Представляет набор клиентов для различных сервисов
+pub struct Clients {
+    pub core: GithubClient,
+    // outhers next
+}
+
+impl Clients {
+    pub fn new(core: GithubClient) -> Self {
+        Self { core }
+    }
+}
+
 #[allow(async_fn_in_trait)]
-pub trait Client {
+pub trait Client
+where
+    Self: ClientGeneral + ClientDownload + ClientValidation,
+{
     type ListOptions;
     type GetOptions;
-
-    /// Получить клиент клиента
-    fn client(&self) -> reqwest::Client;
-    /// Получить спан клиента
-    fn span(&self) -> tracing::Span;
 
     /// Получить список доступных элементов
     async fn list(&self, options: Self::ListOptions) -> Result<Vec<Item>>;
 
     /// Получить элемент по фильтрам
     async fn get(&self, options: Self::GetOptions) -> Result<Option<Item>>;
+}
 
+#[derive(Debug, Clone, Default)]
+pub struct DownloadProgress {
+    pub downloaded: u64,
+    pub total: Option<u64>,
+}
+
+impl DownloadProgress {
+    pub fn fraction(&self) -> Option<f32> {
+        self.total.map(|total| {
+            if total == 0 {
+                0.0
+            } else {
+                self.downloaded as f32 / total as f32
+            }
+        })
+    }
+}
+
+pub trait ProgressSink: Send + Sync {
+    fn update(&self, progress: DownloadProgress);
+}
+
+pub enum DownloadType {
+    Zip,
+}
+
+pub trait ClientGeneral {
+    fn span(&self) -> tracing::Span;
+    fn client(&self) -> reqwest::Client;
+    fn download_type(&self) -> DownloadType;
+    fn variant(&self) -> ClientVariant;
+}
+
+pub trait ClientValidation
+where
+    Self: ClientGeneral,
+{
+    #[instrument(
+        level = "debug",
+        parent = &self.span(),
+        skip(self),
+    )]
+    /// Начало валидации [Item]
+    fn validate_begin(&self, item: &Item) -> Option<Box<dyn DynDigest>> {
+        item.hash.as_ref().map(|h| h.hasher())
+    }
+
+    #[instrument(
+        level = "debug",
+        parent = &self.span(),
+        skip(self, hasher),
+    )]
+    /// Фиксация [Item]
+    fn validate_finish(&self, item: &Item, hasher: Option<Box<dyn DynDigest>>) -> bool {
+        match (hasher, &item.hash) {
+            (Some(h), Some(hash)) => hash.verify_digest(&h.finalize()),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
+
+#[allow(async_fn_in_trait)]
+pub trait ClientDownload
+where
+    Self: ClientGeneral + ClientValidation,
+{
     #[instrument(
         level = "debug",
         parent = &self.span(),
@@ -75,50 +155,4 @@ pub trait Client {
 
         Ok(())
     }
-
-    #[instrument(
-        level = "debug",
-        parent = &self.span(),
-        skip(self),
-    )]
-    /// Начало валидации [Item]
-    fn validate_begin(&self, item: &Item) -> Option<Box<dyn DynDigest>> {
-        item.hash.as_ref().map(|h| h.hasher())
-    }
-
-    #[instrument(
-        level = "debug",
-        parent = &self.span(),
-        skip(self, hasher),
-    )]
-    /// Фиксация [Item]
-    fn validate_finish(&self, item: &Item, hasher: Option<Box<dyn DynDigest>>) -> bool {
-        match (hasher, &item.hash) {
-            (Some(h), Some(hash)) => hash.verify_digest(&h.finalize()),
-            (None, None) => true,
-            _ => false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct DownloadProgress {
-    pub downloaded: u64,
-    pub total: Option<u64>,
-}
-
-impl DownloadProgress {
-    pub fn fraction(&self) -> Option<f32> {
-        self.total.map(|total| {
-            if total == 0 {
-                0.0
-            } else {
-                self.downloaded as f32 / total as f32
-            }
-        })
-    }
-}
-
-pub trait ProgressSink: Send + Sync {
-    fn update(&self, progress: DownloadProgress);
 }

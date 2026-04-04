@@ -36,7 +36,7 @@ impl GithubClient {
                 .connection_verbose(true)
                 .https_only(true)
                 .build()?,
-            span: tracing::info_span!("network_client", client = "github", repo_owner, repo),
+            span: tracing::info_span!("clients", client = "github", repo_owner, repo),
             repo_owner,
             repo,
         })

@@ -1,5 +1,5 @@
 use crate::{
-    clients::{Client, Item, github::client::GithubClient},
+    clients::{Client, ClientDownload, ClientGeneral, ClientValidation, Item, github::client::GithubClient},
     error::Result,
 };
 
@@ -14,18 +14,29 @@ pub struct GitHubListOptions {
     pub search_version: Vec<String>,
 }
 
-impl Client for GithubClient {
-    type ListOptions = GitHubListOptions;
-
-    type GetOptions = GitHubGetOptions;
-
+impl ClientGeneral for GithubClient {
+    fn span(&self) -> tracing::Span {
+        self.span.clone()
+    }
     fn client(&self) -> reqwest::Client {
         self.client.clone()
     }
 
-    fn span(&self) -> tracing::Span {
-        self.span.clone()
+    fn download_type(&self) -> super::DownloadType {
+        super::DownloadType::Zip
     }
+
+    fn variant(&self) -> super::ClientVariant {
+        super::ClientVariant::Github
+    }
+}
+impl ClientDownload for GithubClient {}
+impl ClientValidation for GithubClient {}
+
+impl Client for GithubClient {
+    type ListOptions = GitHubListOptions;
+
+    type GetOptions = GitHubGetOptions;
 
     async fn list(&self, options: Self::ListOptions) -> Result<Vec<Item>> {
         Ok(self

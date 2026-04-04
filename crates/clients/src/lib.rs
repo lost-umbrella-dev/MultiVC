@@ -4,8 +4,10 @@ pub mod hash;
 pub mod item;
 
 pub mod prelude {
-    pub use crate::clients::{Client, Clients, DownloadProgress, ProgressSink};
+    pub use crate::clients::{
+        Client, ClientDownload, ClientGeneral, ClientValidation, ClientVariant, DownloadProgress, ProgressSink,
+    };
     pub use crate::error::{ClientError, Result, response_error};
     pub use crate::hash::Hash;
-    pub use crate::item::{Item, ItemDependence, ItemLock};
+    pub use crate::item::{Item, ItemDependence};
 }

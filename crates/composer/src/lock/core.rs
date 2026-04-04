@@ -1,8 +1,10 @@
-use clients::item::ItemLock;
 use serde::{Deserialize, Serialize};
 
+use crate::item::LockMap;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CoreLock {
+/// Представялет lock файл cores
+pub struct CoresLock {
     #[serde(flatten)]
-    pub items: Vec<ItemLock>,
+    pub items: LockMap,
 }
