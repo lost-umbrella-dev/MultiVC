@@ -1,7 +1,7 @@
 use clients::item::Item;
 use futures_util::{StreamExt, stream};
 
-use crate::State;
+use crate::Composer;
 use crate::downloads::{DownloadRequest, PARALLELISM};
 use crate::error::{ComposerError, Result};
 use crate::lock::Lock;
@@ -9,7 +9,7 @@ use crate::lock::core::CoresLock;
 
 use super::pipeline;
 
-impl State {
+impl Composer {
     /// Устанавливает ядра.
     ///
     /// Параллельно скачивает, распаковывает, переименовывает исполняемый

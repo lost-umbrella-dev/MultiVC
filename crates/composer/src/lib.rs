@@ -15,6 +15,7 @@ pub use downloads::DownloadRequest;
 pub mod error;
 pub mod item;
 pub mod lock;
+pub mod message;
 pub mod progress;
 pub mod utils;
 
@@ -24,7 +25,7 @@ pub mod utils;
 /// высокоуровневый API для GUI, TUI и CLI.
 ///
 /// Download-функции (`install_cores`, `install_contents`) вынесены в модуль `downloads`.
-pub struct State {
+pub struct Composer {
     pub(crate) clients: Clients,
     pub(crate) instances: InstancesLock,
     pub(crate) cores: CoresLock,
@@ -33,7 +34,7 @@ pub struct State {
 
 // ── Construction ─────────────────────────────────────────────────────
 
-impl State {
+impl Composer {
     /// Создаёт пустой State (свежая установка, тесты).
     pub fn new(clients: Clients) -> Self {
         Self {
@@ -61,7 +62,7 @@ impl State {
 
 // ── Persistence ──────────────────────────────────────────────────────
 
-impl State {
+impl Composer {
     /// Сохраняет все lock-файлы на диск.
     pub async fn save(&self) -> Result<()> {
         self.instances.save().await?;
@@ -88,7 +89,7 @@ impl State {
 
 // ── Items access ─────────────────────────────────────────────────────
 
-impl State {
+impl Composer {
     /// Прямой доступ к элементам ядер.
     pub fn cores_items(&self) -> &LockMap {
         self.cores.items()
@@ -102,7 +103,7 @@ impl State {
 
 // ── Validation ───────────────────────────────────────────────────────
 
-impl State {
+impl Composer {
     /// Проверяет директорию ядер на соответствие lock-файлу.
     pub async fn validate_cores(&self) -> Result<Vec<ValidateReason>> {
         self.cores.validate_dir().await
