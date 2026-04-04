@@ -1,4 +1,5 @@
 use clients::hash::Hash;
+use tracing::instrument;
 
 use crate::{
     error::ValidationError,
@@ -11,6 +12,16 @@ use super::{fs, hash};
 pub const PARALLELISM: usize = 32;
 
 /// Валидирует одну локальную директорию по хэшу дерева из lock-файла.
+#[instrument(
+    name = "lock.validate_item",
+    level = "debug",
+    skip(item),
+    fields(
+        item.name = %item.item.name,
+        item.version = %item.item.version,
+        hash = %hash_value,
+    ),
+)]
 pub async fn validate_dir_item<L>(hash_value: &Hash, item: &LockItem) -> Result<Option<ValidateReason>, ValidationError>
 where
     L: Lock,
@@ -20,6 +31,7 @@ where
     match tokio::fs::metadata(&path).await {
         Ok(metadata) => {
             if !metadata.is_dir() {
+                tracing::warn!(path = %path.display(), "expected directory, found file — treating as not found");
                 return Ok(Some(ValidateReason::NotFound(hash_value.clone(), item.clone())));
             }
 
@@ -33,14 +45,20 @@ where
                 })??;
 
             if is_match {
+                tracing::debug!("hash matched");
                 Ok(None)
             } else {
+                tracing::warn!("hash mismatch");
                 Ok(Some(ValidateReason::HashNotMatcher(hash_value.clone(), item.clone())))
             }
         },
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            tracing::debug!(path = %path.display(), "directory not found");
             Ok(Some(ValidateReason::NotFound(hash_value.clone(), item.clone())))
         },
-        Err(error) => Err(ValidationError::Read { path, source: error }),
+        Err(error) => {
+            tracing::error!(path = %path.display(), %error, "failed to read metadata");
+            Err(ValidationError::Read { path, source: error })
+        },
     }
 }
