@@ -50,18 +50,18 @@ pub fn ext() -> &'static str {
     }
 }
 
-/// Каноническое имя исполняемого файла ядра.
 #[allow(dead_code)]
+/// Каноническое имя исполняемого файла ядра.
 pub fn name() -> &'static str {
     CANONICAL_NAME
 }
 
+#[allow(dead_code)]
 /// Возвращает `true` если на текущей ОС ядро скачивается как архив,
 /// который нужно распаковывать.
 ///
 /// - **Windows**: `true` — качается `.zip`, внутри `VoxelCore.exe` + ресурсы.
 /// - **Linux / macOS**: `false` — качается один файл (`.AppImage` / `.dmg`).
-#[allow(dead_code)]
 pub const fn needs_extraction() -> bool {
     cfg!(target_os = "windows")
 }
@@ -138,10 +138,10 @@ async fn find_voxelcore_exe(dir: &Path) -> Result<Option<std::path::PathBuf>> {
             let file_type = entry.file_type().await?;
 
             if file_type.is_file() {
-                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                    if file_name.eq_ignore_ascii_case(VOXELCORE_EXE_NAME) {
-                        return Ok(Some(path));
-                    }
+                if let Some(file_name) = path.file_name().and_then(|n| n.to_str())
+                    && file_name.eq_ignore_ascii_case(VOXELCORE_EXE_NAME)
+                {
+                    return Ok(Some(path));
                 }
             } else if file_type.is_dir() {
                 stack.push(path);

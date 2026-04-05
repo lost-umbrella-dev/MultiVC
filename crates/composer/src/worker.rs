@@ -18,7 +18,7 @@ use tokio::sync::mpsc;
 
 use crate::Composer;
 use crate::lock::Lock;
-use crate::message::{Command, CoresInstalledResult, Event};
+use crate::message::{Command, CoresInstalledResult, Event, InstancesSnapshot};
 
 // ── Handles ──────────────────────────────────────────────────────────
 
@@ -127,7 +127,6 @@ impl ComposerWorker {
         tracing::info!("composer worker stopped");
     }
 
-    /// Диспетчеризация одной команды → один Event.
     /// Снимок текущих ядер из lock (для отправки в UI).
     fn cores_snapshot(&self) -> crate::message::ItemsSnapshot {
         self.composer
@@ -138,7 +137,7 @@ impl ComposerWorker {
     }
 
     /// Снимок текущих инстансов из lock (для отправки в UI).
-    fn instances_snapshot(&self) -> crate::message::ItemsSnapshot {
+    fn instances_snapshot(&self) -> InstancesSnapshot {
         self.composer
             .instances_items()
             .iter()
@@ -151,21 +150,22 @@ impl ComposerWorker {
         let _ = self.events.send(event).await;
     }
 
+    /// Диспетчеризация одной команды → один Event.
     async fn handle(&mut self, cmd: Command) -> Event {
         match cmd {
             // ── Persistence ──────────────────────────────────────
             Command::Save => {
-                let result = self.composer.save().await.map_err(Into::into);
+                let result = self.composer.save().await;
                 Event::Saved(result)
             },
 
             Command::SaveCores => {
-                let result = self.composer.save_cores().await.map_err(Into::into);
+                let result = self.composer.save_cores().await;
                 Event::CoresSaved(result)
             },
 
             Command::SaveInstances => {
-                let result = self.composer.save_instances().await.map_err(Into::into);
+                let result = self.composer.save_instances().await;
                 Event::InstancesSaved(result)
             },
 
@@ -180,11 +180,10 @@ impl ComposerWorker {
 
                         // Автосохраняем lock после установки — даже при частичном успехе,
                         // чтобы не потерять уже установленные элементы.
-                        if successful > 0 {
-                            if let Err(e) = self.composer.save_cores().await {
+                        if successful > 0
+                            && let Err(e) = self.composer.save_cores().await {
                                 tracing::error!(error = %e, "failed to save cores lock after install");
                             }
-                        }
 
                         // Отправляем актуальный снимок ядер в UI
                         self.send(Event::CoresItems(self.cores_snapshot())).await;
@@ -197,16 +196,16 @@ impl ComposerWorker {
 
             // ── Validation ───────────────────────────────────────
             Command::ValidateCores => {
-                let result = self.composer.validate_cores().await.map_err(Into::into);
+                let result = self.composer.validate_cores().await;
                 Event::CoresValidated(result)
             },
 
             Command::ValidateInstances => {
-                let result = self.composer.validate_instances().await.map_err(Into::into);
+                let result = self.composer.validate_instances().await;
                 Event::InstancesValidated(result)
             },
 
-            // ── Remove ───────────────────────────────────────────
+            // ── Remove core ──────────────────────────────────────
             Command::RemoveCore { hash } => {
                 match self.composer.cores.remove(&hash).await {
                     Ok(item) => {
@@ -224,18 +223,49 @@ impl ComposerWorker {
                 }
             },
 
-            Command::RemoveInstance { hash } => match self.composer.instances.remove(&hash).await {
-                Ok(item) => {
-                    if item.is_some() {
-                        if let Err(e) = self.composer.save_instances().await {
-                            tracing::error!(error = %e, "failed to save instances lock after removal");
-                        }
+            // ── Instances CRUD ───────────────────────────────────
+            Command::CreateInstance { name, config, meta } => {
+                match self.composer.create_instance(name.clone(), config, meta).await {
+                    Ok(()) => {
                         // Отправляем актуальный снимок инстансов в UI
                         self.send(Event::InstancesItems(self.instances_snapshot())).await;
-                    }
-                    Event::InstanceRemoved { hash, item }
-                },
-                Err(e) => Event::Error(e),
+                        Event::InstanceCreated(Ok(name))
+                    },
+                    Err(e) => Event::InstanceCreated(Err(e)),
+                }
+            },
+
+            Command::GetInstance { name } => {
+                let result = self.composer.get_instance(&name).await;
+                Event::InstanceInfo(result)
+            },
+
+            Command::EditInstance { name, config, meta } => {
+                match self.composer.edit_instance(&name, config, meta).await {
+                    Ok(()) => {
+                        // Отправляем актуальный снимок инстансов в UI
+                        self.send(Event::InstancesItems(self.instances_snapshot())).await;
+                        Event::InstanceEdited(Ok(name))
+                    },
+                    Err(e) => Event::InstanceEdited(Err(e)),
+                }
+            },
+
+            Command::RemoveInstance { name } => {
+                match self.composer.remove_instance(&name).await {
+                    Ok(item) => {
+                        if item.is_some() {
+                            // Автосохраняем lock после удаления
+                            if let Err(e) = self.composer.save_instances().await {
+                                tracing::error!(error = %e, "failed to save instances lock after removal");
+                            }
+                            // Отправляем актуальный снимок инстансов в UI
+                            self.send(Event::InstancesItems(self.instances_snapshot())).await;
+                        }
+                        Event::InstanceRemoved { name, item }
+                    },
+                    Err(e) => Event::Error(e),
+                }
             },
 
             // ── Fetch (list / get) ───────────────────────────────

@@ -20,9 +20,14 @@ use crate::DownloadRequest;
 use crate::error::ComposerError;
 use crate::item::LockItem;
 use crate::lock::ValidateReason;
+use crate::lock::instance::Instance;
+use crate::lock::instances::{InstanceValidateReason, InstancesItem};
 
-/// Снимок элементов lock-файла для передачи в UI.
+/// Снимок элементов lock-файла cores для передачи в UI.
 pub type ItemsSnapshot = Vec<(Hash, LockItem)>;
+
+/// Снимок элементов lock-файла инстансов для передачи в UI.
+pub type InstancesSnapshot = Vec<(String, InstancesItem)>;
 
 // ── Commands (UI → Background) ──────────────────────────────────────
 
@@ -49,8 +54,25 @@ pub enum Command {
     /// Удалить ядро по хэшу.
     RemoveCore { hash: Hash },
 
-    /// Удалить инстанс по хэшу.
-    RemoveInstance { hash: Hash },
+    /// Создать новый инстанс.
+    CreateInstance {
+        name: String,
+        config: Instance,
+        meta: InstancesItem,
+    },
+
+    /// Получить конфигурацию инстанса (instance.toml) по имени.
+    GetInstance { name: String },
+
+    /// Обновить инстанс (конфигурацию + метаданные).
+    EditInstance {
+        name: String,
+        config: Instance,
+        meta: InstancesItem,
+    },
+
+    /// Удалить инстанс по имени.
+    RemoveInstance { name: String },
 
     /// Запросить текущий список установленных ядер из lock.
     GetCoresItems,
@@ -93,7 +115,7 @@ pub enum Event {
     CoresValidated(Result<Vec<ValidateReason>, ComposerError>),
 
     /// Валидация инстансов завершена.
-    InstancesValidated(Result<Vec<ValidateReason>, ComposerError>),
+    InstancesValidated(Result<Vec<InstanceValidateReason>, ComposerError>),
 
     /// Ядро удалено.
     CoreRemoved {
@@ -102,11 +124,20 @@ pub enum Event {
         item: Option<LockItem>,
     },
 
+    /// Инстанс создан.
+    InstanceCreated(Result<String, ComposerError>),
+
+    /// Информация об инстансе.
+    InstanceInfo(Result<Instance, ComposerError>),
+
+    /// Инстанс обновлён.
+    InstanceEdited(Result<String, ComposerError>),
+
     /// Инстанс удалён.
     InstanceRemoved {
-        hash: Hash,
+        name: String,
         /// Удалённый элемент, или `None` если не найден.
-        item: Option<LockItem>,
+        item: Option<InstancesItem>,
     },
 
     /// Список доступных версий ядер получен.
@@ -119,7 +150,7 @@ pub enum Event {
     CoresItems(ItemsSnapshot),
 
     /// Текущий список установленных инстансов.
-    InstancesItems(ItemsSnapshot),
+    InstancesItems(InstancesSnapshot),
 
     /// Произошла фатальная ошибка.
     Error(ComposerError),

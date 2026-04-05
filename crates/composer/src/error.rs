@@ -29,6 +29,18 @@ pub enum ComposerError {
     ZipballUrlMissing,
     #[error("Resource directory `res/` not found in zipball archive `{path}`")]
     ResNotFound { path: PathBuf },
+    #[error("Core `{hash}` is still used by {count} instance(s): {instances}",
+        count = dependents.len(),
+        instances = dependents.join(", ")
+    )]
+    CoreInUse {
+        hash: clients::hash::Hash,
+        dependents: Vec<String>,
+    },
+    #[error("Instance `{name}` already exists")]
+    InstanceAlreadyExists { name: String },
+    #[error("Instance `{name}` not found")]
+    InstanceNotFound { name: String },
 }
 
 #[derive(Error, Debug)]

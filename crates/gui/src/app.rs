@@ -11,6 +11,7 @@ use clients::hash::Hash;
 use clients::item::Item;
 use composer::item::LockItem;
 use composer::lock::ValidateReason;
+use composer::lock::instances::{InstanceValidateReason, InstancesItem};
 use composer::message::{Command, CoresInstalledResult, Event};
 use composer::progress::{ProgressBridge, RepaintHook};
 use composer::worker::WorkerHandle;
@@ -21,26 +22,24 @@ use clients::github::GitHubListOptions;
 
 /// Вкладки левой панели навигации.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 enum Tab {
+    #[default]
     Cores,
     Instances,
 }
 
-impl Default for Tab {
-    fn default() -> Self {
-        Self::Cores
-    }
-}
 
 // ── UI State ─────────────────────────────────────────────────────────
 
 /// Кэшированное состояние UI, обновляемое из [`Event`]-ов.
+#[derive(Default)]
 struct UiState {
     /// Установленные ядра (кэш из lock).
     cores: Vec<(Hash, LockItem)>,
 
     /// Установленные инстансы (кэш из lock).
-    instances: Vec<(Hash, LockItem)>,
+    instances: Vec<(String, InstancesItem)>,
 
     /// Доступные на GitHub версии ядер.
     available_cores: Vec<Item>,
@@ -49,7 +48,7 @@ struct UiState {
     core_validation: Vec<ValidateReason>,
 
     /// Результат последней валидации инстансов.
-    instance_validation: Vec<ValidateReason>,
+    instance_validation: Vec<InstanceValidateReason>,
 
     /// Последняя ошибка для отображения.
     last_error: Option<String>,
@@ -61,20 +60,6 @@ struct UiState {
     busy: bool,
 }
 
-impl Default for UiState {
-    fn default() -> Self {
-        Self {
-            cores: Vec::new(),
-            instances: Vec::new(),
-            available_cores: Vec::new(),
-            core_validation: Vec::new(),
-            instance_validation: Vec::new(),
-            last_error: None,
-            last_info: None,
-            busy: false,
-        }
-    }
-}
 
 // ── App ──────────────────────────────────────────────────────────────
 
@@ -221,16 +206,31 @@ impl App {
                 }
             },
 
-            Event::InstanceRemoved { hash, item } => {
-                if let Some(lock_item) = &item {
-                    self.state.instances.retain(|(h, _)| h != &hash);
-                    self.state.last_info = Some(format!(
-                        "Инстанс удалён: {} v{}",
-                        lock_item.item.name, lock_item.item.version
-                    ));
+            Event::InstanceRemoved { name, item } => {
+                if item.is_some() {
+                    self.state.instances.retain(|(n, _)| n != &name);
+                    self.state.last_info = Some(format!("Инстанс удалён: {name}"));
                 } else {
-                    self.state.last_error = Some(format!("Инстанс не найден: {hash}"));
+                    self.state.last_error = Some(format!("Инстанс не найден: {name}"));
                 }
+            },
+
+            Event::InstanceCreated(Ok(name)) => {
+                self.state.last_info = Some(format!("Инстанс создан: {name}"));
+            },
+            Event::InstanceCreated(Err(e)) => {
+                self.state.last_error = Some(format!("Ошибка создания инстанса: {e}"));
+            },
+
+            Event::InstanceInfo(_) => {
+                // Handled by specific UI flows that request instance info
+            },
+
+            Event::InstanceEdited(Ok(name)) => {
+                self.state.last_info = Some(format!("Инстанс обновлён: {name}"));
+            },
+            Event::InstanceEdited(Err(e)) => {
+                self.state.last_error = Some(format!("Ошибка обновления инстанса: {e}"));
             },
 
             // ── Fetch ────────────────────────────────────────────
@@ -289,11 +289,10 @@ impl App {
         }
 
         // Прогресс-бар текущей загрузки
-        if let Some(bridge) = &self.progress_bridge {
-            if let Some(fraction) = bridge.fraction() {
+        if let Some(bridge) = &self.progress_bridge
+            && let Some(fraction) = bridge.fraction() {
                 ui.add(egui::ProgressBar::new(fraction).show_percentage());
             }
-        }
 
         ui.separator();
 
@@ -522,42 +521,33 @@ impl App {
         } else {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 egui::Grid::new("instances_grid")
-                    .num_columns(4)
+                    .num_columns(3)
                     .striped(true)
                     .show(ui, |ui| {
                         ui.strong("Имя");
-                        ui.strong("Версия");
-                        ui.strong("Хэш");
+                        ui.strong("Иконка");
                         ui.strong("Действия");
                         ui.end_row();
 
-                        let mut to_remove: Option<Hash> = None;
+                        let mut to_remove: Option<String> = None;
 
-                        for (hash, lock_item) in &self.state.instances {
-                            ui.label(&lock_item.item.name);
-                            ui.label(&lock_item.item.version);
-
-                            let hash_str = hash.to_string();
-                            let short = if hash_str.len() > 20 {
-                                format!("{}…", &hash_str[..20])
-                            } else {
-                                hash_str
-                            };
-                            ui.label(short).on_hover_text(hash.to_string());
+                        for (name, _meta) in &self.state.instances {
+                            ui.label(name);
+                            ui.label("(icon)");
 
                             if ui
                                 .add_enabled(!self.state.busy, egui::Button::new("\u{1F5D1}"))
                                 .on_hover_text("Удалить")
                                 .clicked()
                             {
-                                to_remove = Some(hash.clone());
+                                to_remove = Some(name.clone());
                             }
                             ui.end_row();
                         }
 
-                        if let Some(hash) = to_remove {
+                        if let Some(name) = to_remove {
                             self.state.busy = true;
-                            self.handle.try_send(Command::RemoveInstance { hash });
+                            self.handle.try_send(Command::RemoveInstance { name });
                         }
                     });
             });
@@ -569,17 +559,8 @@ impl App {
             ui.heading("Результаты валидации");
             for reason in &self.state.instance_validation {
                 match reason {
-                    ValidateReason::HashNotMatcher(hash, item) => {
-                        ui.colored_label(
-                            egui::Color32::YELLOW,
-                            format!("Хэш не совпадает: {} v{} ({})", item.item.name, item.item.version, hash),
-                        );
-                    },
-                    ValidateReason::NotFound(hash, item) => {
-                        ui.colored_label(
-                            egui::Color32::RED,
-                            format!("Не найден: {} v{} ({})", item.item.name, item.item.version, hash),
-                        );
+                    InstanceValidateReason::NotFound(name, _meta) => {
+                        ui.colored_label(egui::Color32::RED, format!("Папка не найдена: {name}"));
                     },
                 }
             }

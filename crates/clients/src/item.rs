@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::hash::Hash;
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Item {
     /// Name of the item
     pub name: String,
@@ -31,11 +31,10 @@ pub struct Item {
     pub supported_engine: Option<Vec<String>>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemDependence {
     /// Name of the dependent item
-    // TODO: change to hash
-    pub name: String,
+    pub name: Hash,
     /// Version of the dependent item
     ///
     /// example version: "1.1.1",

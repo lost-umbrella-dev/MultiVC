@@ -14,6 +14,8 @@ use composer::{
     Composer, DownloadRequest,
     item::{LockItem, LockMap},
     lock::ValidateReason,
+    lock::instance::Instance,
+    lock::instances::{InstanceValidateReason, InstancesItem},
 };
 
 // ── CLI определения ──────────────────────────────────────────────────
@@ -32,9 +34,11 @@ use composer::{
     after_help = "Примеры:\n  \
         multivc install 0.31.1       Установить ядро v0.31.1\n  \
         multivc ls                   Список установленных ядер\n  \
+        multivc instances            Список инстансов\n  \
         multivc fetch                Все доступные версии с GitHub\n  \
         multivc rm 0.31.1            Удалить ядро по версии\n  \
-        multivc check                Проверить целостность\n\n\
+        multivc check                Проверить целостность\n  \
+        multivc new my_world 0.31.1  Создать инстанс с ядром v0.31.1\n\n\
         Репозиторий: https://github.com/lost-umbrella-dev/MultiVC"
 )]
 struct Cli {
@@ -53,7 +57,8 @@ enum Commands {
     },
 
     /// Показать список установленных ядер
-    #[command(visible_aliases = ["ls", "l"])]
+    // Docker exp, lmao
+    #[command(visible_aliases = ["ls", "l", "images", "i"])]
     List,
 
     /// Получить список доступных версий с GitHub
@@ -73,6 +78,29 @@ enum Commands {
     Remove {
         /// Версия (например "0.31.1") или начало хэша (например "sha256:ab" или "ab3f")
         query: String,
+    },
+
+    /// Показать список инстансов
+    #[command(visible_aliases = ["instances", "li", "ps"])]
+    ListInstances,
+
+    /// Удалить инстанс по имени
+    #[command(visible_aliases = ["rmi", "ri"])]
+    RemoveInstance {
+        /// Имя инстанса для удаления
+        name: String,
+    },
+
+    /// Создать новый инстанс
+    #[command(visible_aliases = ["new", "n", "create"])]
+    CreateInstance {
+        /// Уникальное имя инстанса (оно же имя папки)
+        name: String,
+        /// Версия ядра или префикс хэша (например "0.31.1" или "sha256:ab")
+        core: String,
+        /// Описание инстанса
+        #[arg(long, short)]
+        description: Option<String>,
     },
 }
 
@@ -119,6 +147,21 @@ fn print_validate_reasons(label: &str, reasons: &[ValidateReason]) {
                     "  \u{2717} Файл не найден: «{}» v{} ({hash})",
                     lock_item.item.name, lock_item.item.version,
                 );
+            },
+        }
+    }
+}
+
+/// Выводит причины непрохождения валидации инстансов.
+fn print_instance_validate_reasons(label: &str, reasons: &[InstanceValidateReason]) {
+    if reasons.is_empty() {
+        return;
+    }
+    println!("{label}:");
+    for reason in reasons {
+        match reason {
+            InstanceValidateReason::NotFound(name, _meta) => {
+                println!("  \u{2717} Папка не найдена: «{name}»");
             },
         }
     }
@@ -199,14 +242,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             composer.save_cores().await?;
             tracing::debug!("lock-файл сохранён");
 
-            if let Some(errors) = result {
-                if !errors.is_empty() {
-                    eprintln!("Ошибки при установке:");
-                    for (failed_item, err) in &errors {
-                        eprintln!("  \u{2717} «{}»: {err}", failed_item.name);
-                    }
-                    std::process::exit(1);
+            if let Some(errors) = result
+                && !errors.is_empty()
+            {
+                eprintln!("Ошибки при установке:");
+                for (failed_item, err) in &errors {
+                    eprintln!("  \u{2717} «{}»: {err}", failed_item.name);
                 }
+                std::process::exit(1);
             }
 
             println!("\u{2713} Установка завершена успешно");
@@ -222,8 +265,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 return Ok(());
             }
 
-            println!("{:<40} {:<20} {:<12} {}", "HASH", "NAME", "VERSION", "TIMESTAMP",);
-            println!("{}", "\u{2500}".repeat(92));
+            println!(
+                "{:<40} {:<20} {:<12} {:<24} {}",
+                "HASH", "NAME", "VERSION", "TIMESTAMP", "INSTANCES",
+            );
+            println!("{}", "\u{2500}".repeat(110));
 
             for entry in cores.iter() {
                 let hash = entry.key();
@@ -237,9 +283,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     hash_str
                 };
 
+                let dependents = composer.instances_using_core(hash).await?;
+                let dep_display = if dependents.is_empty() {
+                    "\u{2014}".to_owned()
+                } else {
+                    format!("{} ({})", dependents.len(), dependents.join(", "))
+                };
+
                 println!(
-                    "{:<40} {:<20} {:<12} {}",
-                    hash_display, lock_item.item.name, lock_item.item.version, lock_item.timestamp,
+                    "{:<40} {:<20} {:<12} {:<24} {}",
+                    hash_display,
+                    lock_item.item.name,
+                    lock_item.item.version,
+                    lock_item.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                    dep_display,
                 );
             }
 
@@ -279,7 +336,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let instance_issues = composer.validate_instances().await?;
 
             print_validate_reasons("Проблемы с ядрами", &core_issues);
-            print_validate_reasons("Проблемы с инстансами", &instance_issues);
+            print_instance_validate_reasons("Проблемы с инстансами", &instance_issues);
 
             if core_issues.is_empty() && instance_issues.is_empty() {
                 println!("\u{2713} Всё валидно");
@@ -321,6 +378,113 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(1);
                 },
             }
+        },
+
+        // ── list-instances ───────────────────────────────────────
+        Commands::ListInstances => {
+            let composer = load_composer().await?;
+            let instances = composer.instances_items();
+
+            if instances.is_empty() {
+                println!("Инстансов нет.");
+                return Ok(());
+            }
+
+            println!("{:<25} {:<45} {}", "NAME", "CORE", "DESCRIPTION");
+            println!("{}", "\u{2500}".repeat(90));
+
+            for entry in instances.iter() {
+                let name = entry.key();
+                let (core_display, description) = match composer.get_instance(name).await {
+                    Ok(instance) => {
+                        // Пытаемся найти версию ядра по хэшу
+                        let core_str = if let Some(core_entry) = composer.cores_items().get(&instance.core_version) {
+                            format!(
+                                "{} ({:.20}..)",
+                                core_entry.item.version,
+                                instance.core_version.to_string(),
+                            )
+                        } else {
+                            let h = instance.core_version.to_string();
+                            if h.len() > 40 { format!("{}..", &h[..40]) } else { h }
+                        };
+                        let desc = instance.description.unwrap_or_default();
+                        (core_str, desc)
+                    },
+                    Err(e) => (format!("<ошибка: {e}>"), String::new()),
+                };
+
+                println!("{:<25} {:<45} {}", name, core_display, description);
+            }
+
+            println!("\nВсего: {}", instances.len());
+        },
+
+        // ── create-instance ──────────────────────────────────────
+        Commands::CreateInstance {
+            name,
+            core,
+            description,
+        } => {
+            let composer = load_composer().await?;
+
+            // Ищем ядро по запросу (версия или хэш)
+            let matches = find_cores_by_query(composer.cores_items(), &core);
+
+            let (hash, lock_item) = match matches.len() {
+                0 => {
+                    eprintln!("Ядро не найдено по запросу «{core}»");
+                    std::process::exit(1);
+                },
+                1 => matches.into_iter().next().unwrap(),
+                n => {
+                    eprintln!("Найдено {n} ядер, уточните запрос:");
+                    for (h, li) in &matches {
+                        let hash_str = h.to_string();
+                        let short = if hash_str.len() > 20 {
+                            format!("{}..", &hash_str[..20])
+                        } else {
+                            hash_str
+                        };
+                        eprintln!("  {} {} ({short})", li.item.name, li.item.version);
+                    }
+                    std::process::exit(1);
+                },
+            };
+
+            println!(
+                "Создаю инстанс «{name}» с ядром {} {} ({hash})",
+                lock_item.item.name, lock_item.item.version,
+            );
+
+            let config = Instance {
+                description,
+                core_version: hash,
+                dependencies: Vec::new(),
+            };
+
+            let meta = InstancesItem {
+                icon: String::new(),
+                banner: String::new(),
+            };
+
+            composer.create_instance(name.clone(), config, meta).await?;
+            println!("\u{2713} Инстанс «{name}» создан");
+        },
+
+        // ── remove-instance ──────────────────────────────────────
+        Commands::RemoveInstance { name } => {
+            let composer = load_composer().await?;
+
+            if !composer.instances_items().contains_key(&name) {
+                eprintln!("Инстанс «{name}» не найден");
+                std::process::exit(1);
+            }
+
+            println!("Удаляю инстанс «{name}»...");
+            composer.remove_instance(&name).await?;
+            composer.save_instances().await?;
+            println!("\u{2713} Инстанс «{name}» удалён");
         },
     }
 

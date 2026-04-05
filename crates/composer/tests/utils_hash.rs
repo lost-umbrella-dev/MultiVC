@@ -6,7 +6,6 @@ use std::path::Path;
 use clients::hash::Hash;
 use composer::lock::content::ContentsLock;
 use composer::lock::core::CoresLock;
-use composer::lock::instances::InstancesLock;
 use composer::utils::hash::item_path;
 
 use common::init_test_tracing;
@@ -37,20 +36,6 @@ fn item_path_sha512_cores() {
 
     // 3. Проверяем что путь заканчивается на "cores/sha512-def"
     assert_eq!(path, Path::new("cores").join("sha512-def"));
-}
-
-#[test]
-fn item_path_instances() {
-    let _guard = init_test_tracing();
-
-    // 1. Создаём SHA256 хэш
-    let hash = Hash::SHA256("xyz".to_owned());
-
-    // 2. Вычисляем путь для InstancesLock
-    let path = item_path::<InstancesLock>(&hash);
-
-    // 3. Проверяем что путь заканчивается на "instances/sha256-xyz"
-    assert_eq!(path, Path::new("instances").join("sha256-xyz"));
 }
 
 #[test]

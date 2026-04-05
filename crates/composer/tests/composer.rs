@@ -6,6 +6,7 @@ use tokio::sync::Mutex;
 use clients::Clients;
 use clients::github::GithubClient;
 use composer::Composer;
+use composer::lock::instances::InstancesItem;
 use tempfile::TempDir;
 
 use common::{fake_hash, init_test_tracing, make_lock_item};
@@ -150,9 +151,11 @@ async fn save_instances_only() {
 
     // 4. Создаём Composer и добавляем элемент в instances
     let composer = Composer::new(test_clients());
-    let hash = fake_hash("only_instance");
-    let item = make_lock_item("instance-only", "3.0.0");
-    composer.instances_items().insert(hash.clone(), item);
+    let item = InstancesItem {
+        icon: String::from("test-icon"),
+        banner: String::from("test-banner"),
+    };
+    composer.instances_items().insert("only_instance".to_owned(), item);
 
     // 5. Сохраняем только instances
     composer

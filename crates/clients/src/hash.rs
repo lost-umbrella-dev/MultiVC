@@ -67,6 +67,15 @@ impl FromStr for Hash {
     }
 }
 
+impl AsRef<str> for Hash {
+    fn as_ref(&self) -> &str {
+        match self {
+            Hash::SHA256(value) => value.as_str(),
+            Hash::SHA512(value) => value.as_str(),
+        }
+    }
+}
+
 impl Serialize for Hash {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
