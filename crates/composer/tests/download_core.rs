@@ -51,7 +51,7 @@ fn core_executable_name() -> String {
 // ── Полный pipeline: list → install → verify ─────────────────────────
 
 #[tokio::test]
-// #[ignore = "требует доступа к сети (GitHub API + CDN)"]
+#[ignore = "требует доступа к сети (GitHub API + CDN)"]
 async fn install_latest_core_full_pipeline() {
     let _guard = init_test_tracing();
     let _cwd = CWD_LOCK.lock().await;
