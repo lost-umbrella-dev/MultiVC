@@ -29,8 +29,8 @@ pub enum ClientError {
     #[error("Tokio error: {0}")]
     TokioIoError(#[from] tokio::io::Error),
 
-    #[error("Hash mismatch, expected: {0:?}")]
-    HashMismatch(Hash),
+    #[error("Hash mismatch, expected: {expected}, got: {got}")]
+    HashMismatch { expected: Hash, got: Hash },
 }
 
 pub type Result<T> = std::result::Result<T, ClientError>;

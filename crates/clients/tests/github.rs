@@ -1,8 +1,8 @@
 use clients::github::{GitHubGetOptions, GitHubListOptions, GithubClient};
 use tracing::subscriber::DefaultGuard;
 use tracing::{error, info};
-use tracing_subscriber::EnvFilter;
 use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{EnvFilter, Layer};
 use tracing_tree::HierarchicalLayer;
 
 /// Создает тестовый клиент Github
@@ -10,17 +10,23 @@ fn create_test_client() -> GithubClient {
     GithubClient::new("MihailRis".to_owned(), "voxelcore".to_owned()).expect("Не удалось создать Github клиент")
 }
 
-fn init_test_tracing() -> DefaultGuard {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
+/// Инициализирует tracing для тестов.
+///
+/// Возвращает `DefaultGuard` — пока он жив, логи пишутся.
+/// Уровень берётся из `RUST_LOG`, по умолчанию `debug`.
+pub fn init_test_tracing() -> DefaultGuard {
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper_util=warn,hyper=warn,reqwest=warn"));
 
-    let subscriber = tracing_subscriber::registry().with(filter).with(
-        HierarchicalLayer::new(2)
-            .with_ansi(true)
-            .with_targets(true)
-            .with_bracketed_fields(true)
-            .with_thread_names(false)
-            .with_indent_lines(true),
-    );
+    let layer = HierarchicalLayer::new(2)
+        .with_ansi(true)
+        .with_targets(true)
+        .with_bracketed_fields(true)
+        .with_thread_names(false)
+        .with_indent_lines(true)
+        .with_filter(filter);
+
+    let subscriber = tracing_subscriber::registry().with(layer);
 
     tracing::subscriber::set_default(subscriber)
 }

@@ -2,6 +2,7 @@ use digest::DynDigest;
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 
 use crate::error::{ClientError, Result};
+use crate::hash::Hash;
 use crate::item::Item;
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -31,12 +32,27 @@ pub fn validate_begin(item: &Item) -> Option<Box<dyn DynDigest>> {
     item.hash.as_ref().map(|h| h.hasher())
 }
 
-/// Финализация валидации хэша для Item
-pub fn validate_finish(item: &Item, hasher: Option<Box<dyn DynDigest>>) -> bool {
+/// Финализация валидации хэша для Item.
+///
+/// Возвращает `Ok(())` при совпадении, или `Err(got_hash)` с фактическим хэшем.
+pub fn validate_finish(item: &Item, hasher: Option<Box<dyn DynDigest>>) -> std::result::Result<(), Option<Hash>> {
     match (hasher, &item.hash) {
-        (Some(h), Some(hash)) => hash.verify_digest(&h.finalize()),
-        (None, None) => true,
-        _ => false,
+        (Some(h), Some(expected)) => {
+            let digest = h.finalize();
+            let got_hex = hex::encode(&digest);
+            if expected.verify_digest(&digest) {
+                Ok(())
+            } else {
+                // Строим фактический Hash того же алгоритма
+                let got = match expected {
+                    Hash::SHA256(_) => Hash::SHA256(got_hex),
+                    Hash::SHA512(_) => Hash::SHA512(got_hex),
+                };
+                Err(Some(got))
+            }
+        },
+        (None, None) => Ok(()),
+        _ => Err(None),
     }
 }
 
@@ -67,8 +83,10 @@ where
         }
     }
 
-    if !validate_finish(item, hasher) {
-        return Err(ClientError::HashMismatch(item.hash.clone().unwrap()));
+    if let Err(got) = validate_finish(item, hasher) {
+        let expected = item.hash.clone().unwrap();
+        let got = got.unwrap_or_else(|| expected.clone());
+        return Err(ClientError::HashMismatch { expected, got });
     }
 
     Ok(())

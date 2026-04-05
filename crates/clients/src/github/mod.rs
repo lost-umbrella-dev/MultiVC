@@ -98,7 +98,7 @@ impl GithubClient {
                 asset.map(|a| Item {
                     name: a.name.to_owned(),
                     version: x.tag_name.to_owned(),
-                    url: a.url.to_owned(),
+                    url: a.browser_download_url.to_owned(),
                     hash: a.digest.to_owned(),
                     size: a.size,
                     dependencies: None,

@@ -14,6 +14,7 @@ use clients::item::Item;
 use composer::item::{LockItem, LockMap};
 use tracing::subscriber::DefaultGuard;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::Layer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_tree::HierarchicalLayer;
 
@@ -22,16 +23,18 @@ use tracing_tree::HierarchicalLayer;
 /// Возвращает `DefaultGuard` — пока он жив, логи пишутся.
 /// Уровень берётся из `RUST_LOG`, по умолчанию `debug`.
 pub fn init_test_tracing() -> DefaultGuard {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper_util=warn,hyper=warn,reqwest=warn"));
 
-    let subscriber = tracing_subscriber::registry().with(filter).with(
-        HierarchicalLayer::new(2)
-            .with_ansi(true)
-            .with_targets(true)
-            .with_bracketed_fields(true)
-            .with_thread_names(false)
-            .with_indent_lines(true),
-    );
+    let layer = HierarchicalLayer::new(2)
+        .with_ansi(true)
+        .with_targets(true)
+        .with_bracketed_fields(true)
+        .with_thread_names(false)
+        .with_indent_lines(true)
+        .with_filter(filter);
+
+    let subscriber = tracing_subscriber::registry().with(layer);
 
     tracing::subscriber::set_default(subscriber)
 }
