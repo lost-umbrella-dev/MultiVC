@@ -38,7 +38,8 @@ use composer::{
         multivc fetch                Все доступные версии с GitHub\n  \
         multivc rm 0.31.1            Удалить ядро по версии\n  \
         multivc check                Проверить целостность\n  \
-        multivc new my_world 0.31.1  Создать инстанс с ядром v0.31.1\n\n\
+        multivc new my_world 0.31.1  Создать инстанс с ядром v0.31.1\n  \
+        multivc launch my_world      Запустить инстанс\n\n\
         Репозиторий: https://github.com/lost-umbrella-dev/MultiVC"
 )]
 struct Cli {
@@ -101,6 +102,13 @@ enum Commands {
         /// Описание инстанса
         #[arg(long, short)]
         description: Option<String>,
+    },
+
+    /// Запустить инстанс (ждёт завершения процесса)
+    #[command(visible_aliases = ["run", "start"])]
+    Launch {
+        /// Имя инстанса для запуска
+        name: String,
     },
 }
 
@@ -209,7 +217,7 @@ fn find_cores_by_query(cores: &LockMap, query: &str) -> Vec<(Hash, LockItem)> {
 
 // ── Entry point ──────────────────────────────────────────────────────
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Инициализация логирования; уровень задаётся через RUST_LOG
     tracing_subscriber::fmt()
@@ -258,7 +266,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ── list ─────────────────────────────────────────────────
         Commands::List => {
             let composer = load_composer().await?;
-            let cores = composer.cores_items();
+            let cores = composer.cores_with_dependents().await?;
 
             if cores.is_empty() {
                 println!("Установленных ядер нет.");
@@ -266,36 +274,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
 
             println!(
-                "{:<40} {:<20} {:<12} {:<24} {}",
-                "HASH", "NAME", "VERSION", "TIMESTAMP", "INSTANCES",
+                "{:<40} {:<20} {:<12} {:<24} INSTANCES",
+                "HASH", "NAME", "VERSION", "TIMESTAMP",
             );
             println!("{}", "\u{2500}".repeat(110));
 
-            for entry in cores.iter() {
-                let hash = entry.key();
-                let lock_item = entry.value();
-
-                // Обрезаем хэш чтобы таблица не разъезжалась
-                let hash_str = hash.to_string();
+            for info in &cores {
+                let hash_str = info.hash.to_string();
                 let hash_display = if hash_str.len() > 37 {
                     format!("{}..", &hash_str[..37])
                 } else {
                     hash_str
                 };
 
-                let dependents = composer.instances_using_core(hash).await?;
-                let dep_display = if dependents.is_empty() {
+                let dep_display = if info.dependents.is_empty() {
                     "\u{2014}".to_owned()
                 } else {
-                    format!("{} ({})", dependents.len(), dependents.join(", "))
+                    format!("{} ({})", info.dependents.len(), info.dependents.join(", "))
                 };
 
                 println!(
                     "{:<40} {:<20} {:<12} {:<24} {}",
                     hash_display,
-                    lock_item.item.name,
-                    lock_item.item.version,
-                    lock_item.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                    info.name,
+                    info.version,
+                    info.timestamp.format("%Y-%m-%d %H:%M:%S"),
                     dep_display,
                 );
             }
@@ -383,41 +386,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ── list-instances ───────────────────────────────────────
         Commands::ListInstances => {
             let composer = load_composer().await?;
-            let instances = composer.instances_items();
+            let details = composer.instances_with_details().await?;
 
-            if instances.is_empty() {
+            if details.is_empty() {
                 println!("Инстансов нет.");
                 return Ok(());
             }
 
-            println!("{:<25} {:<45} {}", "NAME", "CORE", "DESCRIPTION");
+            println!("{:<25} {:<45} DESCRIPTION", "NAME", "CORE");
             println!("{}", "\u{2500}".repeat(90));
 
-            for entry in instances.iter() {
-                let name = entry.key();
-                let (core_display, description) = match composer.get_instance(name).await {
-                    Ok(instance) => {
-                        // Пытаемся найти версию ядра по хэшу
-                        let core_str = if let Some(core_entry) = composer.cores_items().get(&instance.core_version) {
-                            format!(
-                                "{} ({:.20}..)",
-                                core_entry.item.version,
-                                instance.core_version.to_string(),
-                            )
-                        } else {
-                            let h = instance.core_version.to_string();
-                            if h.len() > 40 { format!("{}..", &h[..40]) } else { h }
-                        };
-                        let desc = instance.description.unwrap_or_default();
-                        (core_str, desc)
+            for detail in &details {
+                let core_display = match &detail.core_version_display {
+                    Some(version) => {
+                        let h = detail.config.core_version.to_string();
+                        let short = if h.len() > 20 { format!("{}..", &h[..20]) } else { h };
+                        format!("{version} ({short})")
                     },
-                    Err(e) => (format!("<ошибка: {e}>"), String::new()),
+                    None => {
+                        let h = detail.config.core_version.to_string();
+                        if h.len() > 40 { format!("{}..", &h[..40]) } else { h }
+                    },
                 };
 
-                println!("{:<25} {:<45} {}", name, core_display, description);
+                let description = detail.config.description.as_deref().unwrap_or_default();
+                println!("{:<25} {:<45} {}", detail.name, core_display, description);
             }
 
-            println!("\nВсего: {}", instances.len());
+            println!("\nВсего: {}", details.len());
         },
 
         // ── create-instance ──────────────────────────────────────
@@ -485,6 +481,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             composer.remove_instance(&name).await?;
             composer.save_instances().await?;
             println!("\u{2713} Инстанс «{name}» удалён");
+        },
+
+        // ── launch ───────────────────────────────────────────────
+        Commands::Launch { name } => {
+            let composer = load_composer().await?;
+
+            println!("Запускаю инстанс «{name}»...");
+            let mut child = composer.launch_instance(&name).await?;
+
+            let status = child.wait().await?;
+
+            if status.success() {
+                println!("\u{2713} Инстанс «{name}» завершился успешно");
+            } else {
+                let code = status.code().map(|c| c.to_string()).unwrap_or_else(|| "?".to_owned());
+                eprintln!("\u{2717} Инстанс «{name}» завершился с кодом {code}");
+                std::process::exit(status.code().unwrap_or(1));
+            }
         },
     }
 

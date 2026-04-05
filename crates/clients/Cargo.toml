@@ -14,7 +14,7 @@ readme.workspace = true
 chrono = { workspace = true, features = ["serde"] }
 digest.workspace = true
 hex.workspace = true
-reqwest = { version = "0.13.2", features = ["json", "native-tls", "query"] }
+reqwest = { version = "0.13.2", default-features = false, features = ["json", "rustls", "query"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 sha2.workspace = true

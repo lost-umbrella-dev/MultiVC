@@ -11,10 +11,5 @@ pub fn item_path<L>(hash: &Hash) -> PathBuf
 where
     L: Lock,
 {
-    let file_name = match hash {
-        Hash::SHA256(value) => format!("sha256-{value}"),
-        Hash::SHA512(value) => format!("sha512-{value}"),
-    };
-
-    L::folder_name().join(file_name)
+    L::folder_name().join(hash.to_path_buf())
 }

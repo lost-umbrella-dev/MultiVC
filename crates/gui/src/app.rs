@@ -1,7 +1,7 @@
 //! Главный модуль GUI-приложения на egui.
 //!
 //! [`App`] хранит [`WorkerHandle`] для связи с background-потоком
-//! и UI-состояние, обновляемое через [`Event`]-ы от [`ComposerWorker`].
+//! и UI-состояние, обновляемое через [`Event`]-ы от `[`ComposerWorker`]`.
 
 use std::sync::Arc;
 
@@ -21,14 +21,12 @@ use clients::github::GitHubListOptions;
 // ── Навигация ────────────────────────────────────────────────────────
 
 /// Вкладки левой панели навигации.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 enum Tab {
     #[default]
     Cores,
     Instances,
 }
-
 
 // ── UI State ─────────────────────────────────────────────────────────
 
@@ -59,7 +57,6 @@ struct UiState {
     /// Идёт ли сейчас какая-то фоновая операция.
     busy: bool,
 }
-
 
 // ── App ──────────────────────────────────────────────────────────────
 
@@ -290,9 +287,10 @@ impl App {
 
         // Прогресс-бар текущей загрузки
         if let Some(bridge) = &self.progress_bridge
-            && let Some(fraction) = bridge.fraction() {
-                ui.add(egui::ProgressBar::new(fraction).show_percentage());
-            }
+            && let Some(fraction) = bridge.fraction()
+        {
+            ui.add(egui::ProgressBar::new(fraction).show_percentage());
+        }
 
         ui.separator();
 

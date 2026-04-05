@@ -13,9 +13,8 @@ readme.workspace = true
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 clients.workspace = true
-clap = { version = "4", features = ["derive"] }
 thiserror.workspace = true
-tokio = { workspace = true, features = ["fs", "rt"] }
+tokio = { workspace = true, features = ["fs", "rt", "process"] }
 tracing.workspace = true
 toml = "1.1.2"
 futures-util = "0.3.32"
@@ -25,7 +24,7 @@ digest.workspace = true
 hex.workspace = true
 sha2.workspace = true
 tempfile = "3.27.0"
-zip = "2"
+zip = { version = "2.4.2", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }

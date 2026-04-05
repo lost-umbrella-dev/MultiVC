@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/*"]
+default-members = ["crates/cli", "crates/gui"]
 
 [workspace.package]
 version = "0.0.0"
@@ -18,7 +19,7 @@ readme = "README.md"
 thiserror = "2.0.18"
 # ==== async ====
 # io
-tokio = "1.50.0"
+tokio = { version = "1.50.0", default-features = false }
 tokio-util = "0.7.18"
 # compute
 rayon = "1.11.0"
@@ -51,3 +52,12 @@ str_to_string = "warn"
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs_dep)'] }
+
+[profile.release]
+opt-level = "z"
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+debug = 0
+incremental = false

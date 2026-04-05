@@ -41,6 +41,8 @@ pub enum ComposerError {
     InstanceAlreadyExists { name: String },
     #[error("Instance `{name}` not found")]
     InstanceNotFound { name: String },
+    #[error("Failed to launch instance `{name}`: core executable not found at `{exe_path}`")]
+    LaunchExeNotFound { name: String, exe_path: std::path::PathBuf },
 }
 
 #[derive(Error, Debug)]

@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use chrono::{DateTime, Utc};
 use clients::Clients;
 use clients::hash::Hash;
 
@@ -12,6 +13,34 @@ use crate::lock::core::CoresLock;
 use crate::lock::instance::Instance;
 use crate::lock::instances::{InstanceValidateReason, InstancesItem, InstancesLock, InstancesMap};
 use crate::lock::{Lock, ValidateReason};
+
+// ── View structs ─────────────────────────────────────────────────────
+
+/// Информация о ядре с зависимостями (для отображения в UI).
+#[derive(Debug, Clone)]
+pub struct CoreInfo {
+    pub hash: Hash,
+    pub name: String,
+    pub version: String,
+    pub size: u64,
+    pub timestamp: DateTime<Utc>,
+    /// Имена инстансов, использующих это ядро.
+    pub dependents: Vec<String>,
+}
+
+/// Подробная информация об инстансе (для отображения в UI).
+#[derive(Debug, Clone)]
+pub struct InstanceDetail {
+    /// Имя инстанса (ключ в lock).
+    pub name: String,
+    /// Конфигурация из `instance.toml`.
+    pub config: Instance,
+    /// UI-метаданные из lock (иконка, баннер).
+    pub meta: InstancesItem,
+    /// Человекочитаемая версия ядра (например `"v0.31.1"`), или `None`
+    /// если ядро не найдено в lock.
+    pub core_version_display: Option<String>,
+}
 
 mod downloads;
 
@@ -106,6 +135,83 @@ impl Composer {
     /// Прямой доступ к элементам инстансов (имя → UI-метаданные).
     pub fn instances_items(&self) -> &InstancesMap {
         self.instances.items()
+    }
+}
+
+// ── Query helpers ────────────────────────────────────────────────────
+
+impl Composer {
+    /// Резолвит хэш ядра в человекочитаемую версию (например `"v0.31.1"`).
+    ///
+    /// Возвращает `None` если ядро с таким хэшем не найдено в lock.
+    pub fn resolve_core_version(&self, hash: &Hash) -> Option<String> {
+        self.cores.items().get(hash).map(|entry| entry.item.version.clone())
+    }
+
+    /// Возвращает список всех ядер с информацией о зависимых инстансах.
+    ///
+    /// Один вызов вместо `cores_items()` + N × `instances_using_core()`.
+    pub async fn cores_with_dependents(&self) -> Result<Vec<CoreInfo>> {
+        // Собираем все инстансы и их core_version за один проход
+        let mut core_to_instances: std::collections::HashMap<Hash, Vec<String>> = std::collections::HashMap::new();
+
+        for entry in self.instances.items().iter() {
+            let name = entry.key().clone();
+            match self.get_instance(&name).await {
+                Ok(instance) => {
+                    core_to_instances.entry(instance.core_version).or_default().push(name);
+                },
+                Err(e) => {
+                    tracing::warn!(instance = %name, error = %e, "failed to read instance config, skipping");
+                },
+            }
+        }
+
+        let mut result = Vec::new();
+        for entry in self.cores.items().iter() {
+            let hash = entry.key().clone();
+            let lock_item = entry.value();
+            let dependents = core_to_instances.remove(&hash).unwrap_or_default();
+            result.push(CoreInfo {
+                hash,
+                name: lock_item.item.name.clone(),
+                version: lock_item.item.version.clone(),
+                size: lock_item.item.size,
+                timestamp: lock_item.timestamp,
+                dependents,
+            });
+        }
+
+        Ok(result)
+    }
+
+    /// Возвращает список всех инстансов с полной информацией.
+    ///
+    /// Один вызов вместо `instances_items()` + N × `get_instance()` + N × `resolve_core_version()`.
+    pub async fn instances_with_details(&self) -> Result<Vec<InstanceDetail>> {
+        let mut result = Vec::new();
+
+        for entry in self.instances.items().iter() {
+            let name = entry.key().clone();
+            let meta = entry.value().clone();
+
+            match self.get_instance(&name).await {
+                Ok(config) => {
+                    let core_version_display = self.resolve_core_version(&config.core_version);
+                    result.push(InstanceDetail {
+                        name,
+                        config,
+                        meta,
+                        core_version_display,
+                    });
+                },
+                Err(e) => {
+                    tracing::warn!(instance = %name, error = %e, "failed to read instance config, skipping");
+                },
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -280,9 +386,77 @@ impl Composer {
             instance_dir.to_string_lossy().into_owned(),
             "--res".to_owned(),
             base.join("cores")
-                .join(instance.core_version.as_ref())
+                .join(instance.core_version.to_path_buf())
+                .join("res")
                 .to_string_lossy()
                 .into_owned(),
         ])
+    }
+
+    /// Собирает [`tokio::process::Command`] для запуска инстанса,
+    /// **не** запуская процесс.
+    ///
+    /// Позволяет вызывающему коду настроить `Stdio` (например `piped()`
+    /// для перехвата логов) перед вызовом `.spawn()`.
+    ///
+    /// # Errors
+    ///
+    /// - [`ComposerError::InstanceNotFound`] — инстанс не зарегистрирован.
+    /// - [`ComposerError::LaunchExeNotFound`] — исполняемый файл ядра не найден на диске.
+    pub async fn launch_instance_cmd(&self, name: &str) -> Result<tokio::process::Command> {
+        if !self.instances.items().contains_key(name) {
+            return Err(ComposerError::InstanceNotFound { name: name.to_owned() });
+        }
+
+        let instance = self.get_instance(name).await?;
+        let base = std::env::current_dir()?;
+
+        // Абсолютный путь к исполняемому файлу ядра
+        let core_dir = base.join(utils::hash::item_path::<CoresLock>(&instance.core_version));
+        let exe_path = core_dir.join(downloads::core::executable::CANONICAL_NAME);
+
+        if !tokio::fs::try_exists(&exe_path).await? {
+            return Err(ComposerError::LaunchExeNotFound {
+                name: name.to_owned(),
+                exe_path,
+            });
+        }
+
+        let args = self.build_launch_args(name).await?;
+
+        // Рабочая директория — папка инстанса (абсолютный путь)
+        let instance_dir = base.join(InstancesLock::FOLDER).join(name);
+
+        let mut cmd = tokio::process::Command::new(&exe_path);
+        cmd.args(&args);
+        cmd.current_dir(&instance_dir);
+
+        tracing::debug!(
+            exe = %exe_path.display(),
+            args = ?args,
+            cwd = %instance_dir.display(),
+            "prepared launch command for instance '{name}'",
+        );
+
+        Ok(cmd)
+    }
+
+    /// Запускает инстанс как дочерний процесс.
+    ///
+    /// Находит исполняемый файл ядра, собирает аргументы `--dir` / `--res`
+    /// и спавнит процесс. Stdout и stderr наследуются от родительского процесса.
+    ///
+    /// Возвращает [`tokio::process::Child`] — вызывающий код решает как работать:
+    /// - **CLI**: `child.wait().await` — ждёт завершения.
+    /// - **GUI/TUI**: `child.id()` для мониторинга, `child.kill()` для остановки.
+    ///
+    /// Для перехвата stdout/stderr используйте
+    /// [`launch_instance_cmd`](Self::launch_instance_cmd),
+    /// настройте `Stdio::piped()` и вызовите `.spawn()` вручную.
+    pub async fn launch_instance(&self, name: &str) -> Result<tokio::process::Child> {
+        let mut cmd = self.launch_instance_cmd(name).await?;
+        let child = cmd.spawn()?;
+        tracing::info!(instance = %name, pid = ?child.id(), "instance process spawned");
+        Ok(child)
     }
 }

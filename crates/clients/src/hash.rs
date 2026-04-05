@@ -1,4 +1,4 @@
-use std::{fmt, str::FromStr};
+use std::{fmt, path::PathBuf, str::FromStr};
 
 use digest::DynDigest;
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de::Error as DeError};
@@ -67,11 +67,11 @@ impl FromStr for Hash {
     }
 }
 
-impl AsRef<str> for Hash {
-    fn as_ref(&self) -> &str {
+impl Hash {
+    pub fn to_path_buf(&self) -> PathBuf {
         match self {
-            Hash::SHA256(value) => value.as_str(),
-            Hash::SHA512(value) => value.as_str(),
+            Hash::SHA256(value) => PathBuf::from(format!("sha256-{value}")),
+            Hash::SHA512(value) => PathBuf::from(format!("sha512-{value}")),
         }
     }
 }

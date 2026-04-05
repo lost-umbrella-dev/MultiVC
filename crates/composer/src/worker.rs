@@ -181,9 +181,10 @@ impl ComposerWorker {
                         // Автосохраняем lock после установки — даже при частичном успехе,
                         // чтобы не потерять уже установленные элементы.
                         if successful > 0
-                            && let Err(e) = self.composer.save_cores().await {
-                                tracing::error!(error = %e, "failed to save cores lock after install");
-                            }
+                            && let Err(e) = self.composer.save_cores().await
+                        {
+                            tracing::error!(error = %e, "failed to save cores lock after install");
+                        }
 
                         // Отправляем актуальный снимок ядер в UI
                         self.send(Event::CoresItems(self.cores_snapshot())).await;
