@@ -78,6 +78,12 @@ where
 
         async {
             tracing::debug!("saving lock file");
+
+            // Создаём родительские директории, если их ещё нет
+            if let Some(parent) = Self::file_name().parent() {
+                tokio::fs::create_dir_all(parent).await?;
+            }
+
             let bytes = toml::to_string_pretty(self)?;
             tokio::fs::write(Self::file_name(), bytes).await?;
             tracing::debug!("lock file saved");

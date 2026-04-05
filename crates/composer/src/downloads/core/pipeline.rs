@@ -12,14 +12,15 @@ use crate::error::{ComposerError, Result};
 use crate::item::LockItem;
 use crate::lock::Lock;
 use crate::lock::core::CoresLock;
-use crate::utils::{archive, fs};
+use crate::utils::fs;
 
 use super::executable;
 
 /// Pipeline установки одного ядра.
 ///
-/// Полный цикл: скачивание архива → распаковка → переименование
-/// исполняемого файла в `core.{ext}` → хэширование → commit в хранилище.
+/// Полный цикл зависит от платформы:
+/// - **Windows**: скачивание zip → распаковка → поиск `VoxelCore.exe` → переименование в `core.exe` → хэширование → commit.
+/// - **Linux / macOS**: скачивание файла напрямую → переименование в `core.{ext}` → хэширование → commit.
 ///
 /// Возвращает `(Hash, LockItem)` при успехе или `(Item, ComposerError)` при ошибке.
 pub async fn download_and_prepare(
@@ -65,57 +66,87 @@ pub async fn download_and_prepare(
 
 /// Внутренняя реализация pipeline установки ядра.
 ///
-/// Шаги:
-/// 1. Создание staging-директории
-/// 2. Скачивание архива
-/// 3. Распаковка
-/// 4. Переименование исполняемого файла → `core.{ext}`
-/// 5. Хэширование (после переименования — хэш включает каноническое имя)
-/// 6. Commit в хранилище lock-а
+/// Платформозависимое поведение:
+///
+/// - **Windows**: скачивает zip-архив, распаковывает, ищет `VoxelCore.exe`,
+///   переименовывает в `core.exe`, хэширует директорию, коммитит.
+///
+/// - **Linux / macOS**: скачивает файл напрямую (`.AppImage` / `.dmg`),
+///   переименовывает в `core.{ext}`, хэширует директорию, коммитит.
 async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn ProgressSink>) -> Result<Hash> {
     // 1. Staging directory
     tracing::debug!("creating staging directory");
     let folder = CoresLock::folder_name().to_path_buf();
+    tokio::fs::create_dir_all(&folder).await?;
     let temp_dir = tokio::task::spawn_blocking(move || TempDir::new_in(folder))
         .await
         .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
 
-    let archive_path = temp_dir.path().join("archive.zip");
-    let extract_path = temp_dir.path().join("extract");
+    let content_dir = temp_dir.path().join("content");
+    tokio::fs::create_dir_all(&content_dir).await?;
 
-    tokio::fs::create_dir_all(&extract_path).await?;
+    // 2–4. Платформозависимая часть: скачивание + подготовка содержимого
+    //
+    // После этого блока в `content_dir` лежит готовое содержимое
+    // с переименованным исполняемым файлом (`core.exe` / `core.AppImage` / `core.dmg`).
 
-    // 2. Download
-    let mut archive_file = tokio::fs::File::create(&archive_path).await?;
-    tracing::debug!(url = %item.url, "downloading archive");
-    clients::download(&client.client, item, &mut archive_file, progress)
-        .instrument(client.span())
-        .await?;
-    archive_file.flush().await?;
-    drop(archive_file);
+    #[cfg(target_os = "windows")]
+    {
+        use crate::utils::archive;
 
-    // 3. Extract
-    tracing::debug!("extracting archive");
-    let archive_for_extract = archive_path.clone();
-    let extract_for_extract = extract_path.clone();
-    tokio::task::spawn_blocking(move || archive::extract_zip(&archive_for_extract, &extract_for_extract))
-        .await
-        .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
+        let archive_path = temp_dir.path().join("archive.zip");
 
-    // 4. Rename executable → core.{ext}
-    tracing::debug!("renaming core executable");
-    executable::rename(&extract_path).await?;
+        // 2. Download archive
+        let mut archive_file = tokio::fs::File::create(&archive_path).await?;
+        tracing::debug!(url = %item.url, "downloading archive");
+        clients::download(&client.client, item, &mut archive_file, progress)
+            .instrument(client.span())
+            .await?;
+        archive_file.flush().await?;
+        drop(archive_file);
 
-    // 5. Hash (after rename, so hash includes canonical name)
+        // 3. Extract
+        tracing::debug!("extracting archive");
+        let archive_for_extract = archive_path.clone();
+        let extract_for_extract = content_dir.clone();
+        tokio::task::spawn_blocking(move || archive::extract_zip(&archive_for_extract, &extract_for_extract))
+            .await
+            .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
+
+        // 4. Rename VoxelCore.exe → core.exe
+        tracing::debug!("renaming VoxelCore.exe → core.exe");
+        executable::rename(&content_dir, std::path::Path::new("")).await?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // 2. Download file directly
+        let original_name = item.url.rsplit('/').next().unwrap_or("downloaded_core");
+        let download_path = content_dir.join(original_name);
+
+        let mut file = tokio::fs::File::create(&download_path).await?;
+        tracing::debug!(url = %item.url, "downloading file (direct)");
+        clients::download(&client.client, item, &mut file, progress)
+            .instrument(client.span())
+            .await?;
+        file.flush().await?;
+        drop(file);
+
+        // 3. Rename → core.{ext}
+        tracing::debug!("renaming → {}", executable::name());
+        executable::rename(&content_dir, &download_path).await?;
+    }
+
+    // 5. Hash (after rename — хэш включает каноническое имя)
     tracing::debug!("computing directory hash");
-    let extract_for_hash = extract_path.clone();
-    let dir_hash = tokio::task::spawn_blocking(move || fs::compute_directory_hash(&extract_for_hash))
+    let hash_dir = content_dir.clone();
+    let dir_hash = tokio::task::spawn_blocking(move || fs::compute_directory_hash(&hash_dir))
         .await
         .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
 
     // 6. Commit
     tracing::debug!(hash = %dir_hash, "committing to storage");
-    commit_extracted_dir::<CoresLock>(&extract_path, &dir_hash).await?;
+    commit_extracted_dir::<CoresLock>(&content_dir, &dir_hash).await?;
 
     Ok(dir_hash)
 }

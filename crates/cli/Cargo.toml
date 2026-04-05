@@ -1,5 +1,5 @@
 [package]
-name = "gui"
+name = "cli"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,14 +10,17 @@ keywords.workspace = true
 categories.workspace = true
 readme.workspace = true
 
+[[bin]]
+name = "multivc"
+path = "src/main.rs"
+
 [dependencies]
 composer.workspace = true
 clients.workspace = true
-eframe = "0.31"
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
+clap = { version = "4", features = ["derive"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing.workspace = true
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "chrono"] }
-tracing-tree = "0.3"
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 
 [lints]
 workspace = true

@@ -20,6 +20,9 @@ use crate::error::ComposerError;
 use crate::item::LockItem;
 use crate::lock::ValidateReason;
 
+/// Снимок элементов lock-файла для передачи в UI.
+pub type ItemsSnapshot = Vec<(Hash, LockItem)>;
+
 // ── Commands (UI → Background) ──────────────────────────────────────
 
 /// Команда от UI к background-потоку.
@@ -47,6 +50,12 @@ pub enum Command {
 
     /// Удалить инстанс по хэшу.
     RemoveInstance { hash: Hash },
+
+    /// Запросить текущий список установленных ядер из lock.
+    GetCoresItems,
+
+    /// Запросить текущий список установленных инстансов из lock.
+    GetInstancesItems,
 
     /// Получить список доступных версий ядер.
     ///
@@ -104,6 +113,12 @@ pub enum Event {
 
     /// Конкретная версия ядра найдена (или не найдена).
     CoreFetched(Result<Option<Item>, ComposerError>),
+
+    /// Текущий список установленных ядер.
+    CoresItems(ItemsSnapshot),
+
+    /// Текущий список установленных инстансов.
+    InstancesItems(ItemsSnapshot),
 
     /// Произошла фатальная ошибка.
     Error(ComposerError),

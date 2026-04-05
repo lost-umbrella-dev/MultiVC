@@ -18,6 +18,7 @@ pub mod lock;
 pub mod message;
 pub mod progress;
 pub mod utils;
+pub mod worker;
 
 /// Фасад над in-memory состоянием приложения.
 ///

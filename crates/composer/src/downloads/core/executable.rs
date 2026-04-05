@@ -2,61 +2,184 @@ use std::path::Path;
 
 use crate::error::{ComposerError, Result};
 
-/// Расширение исполняемого файла ядра для текущей ОС.
-pub fn ext() -> &'static str {
-    match std::env::consts::OS {
-        "windows" => "exe",
-        "linux" => "AppImage",
-        "macos" => "dmg",
-        _ => "bin",
-    }
-}
+// ── Константы ────────────────────────────────────────────────────────
 
 /// Каноническое имя исполняемого файла ядра: `core.{ext}`.
-pub fn name() -> String {
-    format!("core.{}", ext())
-}
+#[cfg(target_os = "windows")]
+pub const CANONICAL_NAME: &str = "core.exe";
 
-/// Находит исполняемый файл ядра в распакованной директории и переименовывает в `core.{ext}`.
+#[cfg(target_os = "linux")]
+pub const CANONICAL_NAME: &str = "core.AppImage";
+
+#[cfg(target_os = "macos")]
+pub const CANONICAL_NAME: &str = "core.dmg";
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+pub const CANONICAL_NAME: &str = "core.bin";
+
+/// Имя исполняемого файла ядра, которое мы ищем в архиве.
 ///
-/// Поиск по расширению, специфичному для текущей ОС.
-/// Если найден файл — переименовывает. Иначе — ошибка [`ComposerError::CoreExecutableNotFound`].
-pub async fn rename(extract_dir: &Path) -> Result<()> {
-    let extension = ext();
-    let target_name = name();
+/// В zip-архиве VoxelCore лежит несколько `.exe` файлов.
+/// Нам нужен именно `VoxelCore.exe`, остальные — вспомогательные.
+#[cfg(target_os = "windows")]
+const VOXELCORE_EXE_NAME: &str = "VoxelCore.exe";
 
-    let mut entries = tokio::fs::read_dir(extract_dir).await?;
-    let mut found: Option<std::path::PathBuf> = None;
+// ── Public API ───────────────────────────────────────────────────────
 
-    while let Some(entry) = entries.next_entry().await? {
-        let path = entry.path();
-        if path.is_file() {
-            let matches =
-                matches!(path.extension().and_then(|e| e.to_str()), Some(e) if e.eq_ignore_ascii_case(extension));
-            if matches {
-                found = Some(path);
-                break;
-            }
-        }
+/// Расширение исполняемого файла ядра для текущей ОС.
+#[allow(dead_code)]
+pub fn ext() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "exe"
     }
 
-    let source = found.ok_or_else(|| ComposerError::CoreExecutableNotFound {
-        path: extract_dir.to_path_buf(),
-    })?;
+    #[cfg(target_os = "linux")]
+    {
+        "AppImage"
+    }
 
-    let dest = extract_dir.join(&target_name);
+    #[cfg(target_os = "macos")]
+    {
+        "dmg"
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    {
+        "bin"
+    }
+}
+
+/// Каноническое имя исполняемого файла ядра.
+#[allow(dead_code)]
+pub fn name() -> &'static str {
+    CANONICAL_NAME
+}
+
+/// Возвращает `true` если на текущей ОС ядро скачивается как архив,
+/// который нужно распаковывать.
+///
+/// - **Windows**: `true` — качается `.zip`, внутри `VoxelCore.exe` + ресурсы.
+/// - **Linux / macOS**: `false` — качается один файл (`.AppImage` / `.dmg`).
+#[allow(dead_code)]
+pub const fn needs_extraction() -> bool {
+    cfg!(target_os = "windows")
+}
+
+/// Переименовывает исполняемый файл ядра в каноническое имя [`CANONICAL_NAME`].
+///
+/// Поведение зависит от платформы:
+///
+/// - **Windows** — рекурсивно ищет `VoxelCore.exe` в `dir` (распакованный архив),
+///   перемещает в корень `dir` как `core.exe`. Остальные `.exe` не трогает.
+///
+/// - **Linux / macOS** — `source` это скачанный файл (`.AppImage` / `.dmg`),
+///   `dir` — целевая директория. Переименовывает `source` → `dir/core.{ext}`.
+///
+/// # Arguments
+///
+/// - `dir` — директория с содержимым (extract dir на Windows, content dir на Linux/macOS).
+/// - `source` — путь к скачанному файлу. **Игнорируется на Windows** (поиск рекурсивный).
+///   На Linux/macOS это путь к файлу, который нужно переименовать.
+pub async fn rename(dir: &Path, #[cfg_attr(target_os = "windows", allow(unused))] source: &Path) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        rename_archive(dir).await
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        rename_direct(source, dir).await
+    }
+}
+
+// ── Windows implementation ───────────────────────────────────────────
+
+/// Рекурсивно ищет `VoxelCore.exe` в распакованной директории
+/// и перемещает в корень как `core.exe`.
+#[cfg(target_os = "windows")]
+async fn rename_archive(extract_dir: &Path) -> Result<()> {
+    let source = find_voxelcore_exe(extract_dir)
+        .await?
+        .ok_or_else(|| ComposerError::CoreExecutableNotFound {
+            path: extract_dir.to_path_buf(),
+        })?;
+
+    let dest = extract_dir.join(CANONICAL_NAME);
 
     if source != dest {
         tracing::debug!(
             from = %source.display(),
             to = %dest.display(),
-            "renaming core executable",
+            "moving VoxelCore.exe → core.exe",
         );
-        tokio::fs::rename(&source, &dest).await?;
+
+        // copy + remove: надёжнее чем rename на Windows
+        // (залоченный файл, антивирус, cross-volume, etc.)
+        tokio::fs::copy(&source, &dest).await?;
+        tokio::fs::remove_file(&source).await?;
+
+        tracing::debug!(source = %source.display(), "original removed");
     }
 
     Ok(())
 }
+
+/// Рекурсивно ищет `VoxelCore.exe` (регистронезависимо) в директории и поддиректориях.
+#[cfg(target_os = "windows")]
+async fn find_voxelcore_exe(dir: &Path) -> Result<Option<std::path::PathBuf>> {
+    let mut stack = vec![dir.to_path_buf()];
+
+    while let Some(current) = stack.pop() {
+        let mut entries = tokio::fs::read_dir(&current).await?;
+
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            let file_type = entry.file_type().await?;
+
+            if file_type.is_file() {
+                if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
+                    if file_name.eq_ignore_ascii_case(VOXELCORE_EXE_NAME) {
+                        return Ok(Some(path));
+                    }
+                }
+            } else if file_type.is_dir() {
+                stack.push(path);
+            }
+        }
+    }
+
+    Ok(None)
+}
+
+// ── Linux / macOS implementation ─────────────────────────────────────
+
+/// Переименовывает скачанный файл в `core.{ext}`.
+///
+/// На этих платформах ядро — один файл (`.AppImage` или `.dmg`),
+/// который не нужно распаковывать.
+#[cfg(not(target_os = "windows"))]
+async fn rename_direct(downloaded_file: &Path, target_dir: &Path) -> Result<()> {
+    let dest = target_dir.join(CANONICAL_NAME);
+
+    if downloaded_file != dest {
+        tracing::debug!(
+            from = %downloaded_file.display(),
+            to = %dest.display(),
+            "moving downloaded file → {}",
+            CANONICAL_NAME,
+        );
+
+        tokio::fs::copy(downloaded_file, &dest).await?;
+        tokio::fs::remove_file(downloaded_file).await?;
+
+        tracing::debug!(source = %downloaded_file.display(), "original removed");
+    }
+
+    Ok(())
+}
+
+// ── Tests ────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -64,12 +187,10 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    // 1. ext() возвращает платформозависимое расширение
     #[test]
     fn ext_returns_platform_value() {
         let result = ext();
 
-        // Шаг 1: проверяем, что результат соответствует текущей ОС
         #[cfg(target_os = "windows")]
         assert_eq!(result, "exe");
 
@@ -79,147 +200,148 @@ mod tests {
         #[cfg(target_os = "macos")]
         assert_eq!(result, "dmg");
 
-        // Шаг 2: в любом случае строка не пустая
-        assert!(!result.is_empty(), "расширение не должно быть пустым");
+        assert!(!result.is_empty());
     }
 
-    // 2. name() возвращает «core.{ext}»
     #[test]
-    fn name_format() {
-        // Шаг 1: получаем имя
+    fn name_returns_canonical() {
         let result = name();
-
-        // Шаг 2: проверяем формат
         let expected = format!("core.{}", ext());
         assert_eq!(result, expected);
     }
 
-    // 3. rename находит файл по расширению и переименовывает в core.{ext}
-    #[tokio::test]
-    async fn rename_finds_and_renames() {
-        // Шаг 1: создаём временную директорию
-        let tmp = TempDir::new().expect("не удалось создать временную директорию");
-        let dir = tmp.path();
+    #[test]
+    fn needs_extraction_platform() {
+        #[cfg(target_os = "windows")]
+        assert!(needs_extraction());
 
-        // Шаг 2: создаём файл с правильным расширением, но другим именем
-        let extension = ext();
-        let source_name = format!("server-v1.2.3.{extension}");
-        let source_path = dir.join(&source_name);
-        fs::write(&source_path, b"fake-binary").expect("не удалось записать файл");
-
-        // Шаг 3: вызываем rename
-        rename(dir).await.expect("rename завершился с ошибкой");
-
-        // Шаг 4: исходный файл должен исчезнуть, а core.{ext} — появиться
-        assert!(!source_path.exists(), "исходный файл должен быть удалён");
-        let dest_path = dir.join(name());
-        assert!(dest_path.exists(), "целевой файл core.{{ext}} должен существовать");
-
-        // Шаг 5: содержимое должно сохраниться
-        let content = fs::read(&dest_path).expect("не удалось прочитать целевой файл");
-        assert_eq!(content, b"fake-binary");
+        #[cfg(not(target_os = "windows"))]
+        assert!(!needs_extraction());
     }
 
-    // 4. Файл уже называется core.{ext} — ничего не делаем, ошибки нет
+    // ── Windows: rename() через archive path ─────────────────────
+
+    /// VoxelCore.exe на верхнем уровне → переименовывается в core.exe.
+    /// Другие .exe остаются нетронутыми.
+    #[cfg(target_os = "windows")]
     #[tokio::test]
-    async fn rename_already_named_core() {
-        // Шаг 1: создаём временную директорию
-        let tmp = TempDir::new().expect("не удалось создать временную директорию");
+    async fn rename_finds_voxelcore_ignores_others() {
+        let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
 
-        // Шаг 2: создаём файл, который уже называется core.{ext}
-        let target = dir.join(name());
-        fs::write(&target, b"already-correct").expect("не удалось записать файл");
+        fs::write(dir.join("VoxelCore.exe"), b"voxelcore-binary").unwrap();
+        fs::write(dir.join("vcruntime140.exe"), b"runtime-binary").unwrap();
 
-        // Шаг 3: вызываем rename — должно пройти без ошибки
-        rename(dir)
-            .await
-            .expect("rename не должен падать, если файл уже назван правильно");
+        // source игнорируется на Windows
+        rename(dir, Path::new("")).await.unwrap();
 
-        // Шаг 4: файл на месте, содержимое не изменилось
-        assert!(target.exists(), "файл должен остаться на месте");
-        let content = fs::read(&target).expect("не удалось прочитать файл");
-        assert_eq!(content, b"already-correct");
+        assert!(dir.join("core.exe").exists());
+        assert_eq!(fs::read(dir.join("core.exe")).unwrap(), b"voxelcore-binary");
+        assert!(!dir.join("VoxelCore.exe").exists());
+        assert!(dir.join("vcruntime140.exe").exists());
+        assert_eq!(fs::read(dir.join("vcruntime140.exe")).unwrap(), b"runtime-binary");
     }
 
-    // 5. Нет файла с нужным расширением → CoreExecutableNotFound
+    /// VoxelCore.exe во вложенной директории — поднимается в корень.
+    #[cfg(target_os = "windows")]
     #[tokio::test]
-    async fn rename_no_executable_found() {
-        // Шаг 1: создаём пустую временную директорию
-        let tmp = TempDir::new().expect("не удалось создать временную директорию");
+    async fn rename_finds_nested() {
+        let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
 
-        // Шаг 2: добавляем файл с неправильным расширением
-        fs::write(dir.join("readme.txt"), b"not an executable").expect("не удалось записать файл");
+        let nested = dir.join("voxelcore-0.31.0_win64");
+        fs::create_dir(&nested).unwrap();
+        fs::write(nested.join("VoxelCore.exe"), b"nested-binary").unwrap();
 
-        // Шаг 3: вызываем rename — ожидаем ошибку
-        let result = rename(dir).await;
-        assert!(result.is_err(), "должна быть ошибка, если нет исполняемого файла");
+        rename(dir, Path::new("")).await.unwrap();
 
-        // Шаг 4: проверяем, что ошибка именно CoreExecutableNotFound
-        let err = result.unwrap_err();
-        match err {
-            ComposerError::CoreExecutableNotFound { path } => {
-                assert_eq!(path, dir.to_path_buf(), "путь в ошибке должен совпадать с директорией");
-            },
-            other => panic!("ожидали CoreExecutableNotFound, получили: {other:?}"),
-        }
+        assert!(dir.join("core.exe").exists());
+        assert_eq!(fs::read(dir.join("core.exe")).unwrap(), b"nested-binary");
+        assert!(!nested.join("VoxelCore.exe").exists());
     }
 
-    // 6. Регистронезависимый поиск: «SERVER.EXE» → находит и переименовывает (только Windows)
+    /// Регистронезависимый поиск: `voxelcore.EXE` тоже находится.
     #[cfg(target_os = "windows")]
     #[tokio::test]
     async fn rename_case_insensitive() {
-        // Шаг 1: создаём временную директорию
-        let tmp = TempDir::new().expect("не удалось создать временную директорию");
+        let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
 
-        // Шаг 2: создаём файл с расширением в верхнем регистре
-        let upper = format!("SERVER.{}", ext().to_ascii_uppercase());
-        let source_path = dir.join(&upper);
-        fs::write(&source_path, b"upper-case-ext").expect("не удалось записать файл");
+        fs::write(dir.join("voxelcore.EXE"), b"case-test").unwrap();
 
-        // Шаг 3: вызываем rename
-        rename(dir)
-            .await
-            .expect("rename должен найти файл с расширением в верхнем регистре");
+        rename(dir, Path::new("")).await.unwrap();
 
-        // Шаг 4: core.{ext} должен появиться
-        let dest_path = dir.join(name());
-        assert!(dest_path.exists(), "целевой файл core.{{ext}} должен существовать");
-
-        // Шаг 5: содержимое сохранилось
-        let content = fs::read(&dest_path).expect("не удалось прочитать целевой файл");
-        assert_eq!(content, b"upper-case-ext");
+        assert!(dir.join("core.exe").exists());
     }
 
-    // 7. Директория с подходящим расширением в имени — не считается файлом
+    /// Нет VoxelCore.exe → ошибка CoreExecutableNotFound.
+    #[cfg(target_os = "windows")]
     #[tokio::test]
-    async fn rename_ignores_directories() {
-        // Шаг 1: создаём временную директорию
-        let tmp = TempDir::new().expect("не удалось создать временную директорию");
+    async fn rename_not_found() {
+        let tmp = TempDir::new().unwrap();
         let dir = tmp.path();
 
-        // Шаг 2: создаём вложенную директорию, имя которой заканчивается на нужное расширение
-        let decoy_name = format!("something.{}", ext());
-        let decoy_dir = dir.join(&decoy_name);
-        fs::create_dir(&decoy_dir).expect("не удалось создать директорию-обманку");
+        fs::write(dir.join("readme.txt"), b"not an exe").unwrap();
+        fs::write(dir.join("other.exe"), b"wrong exe").unwrap();
 
-        // Шаг 3: вызываем rename — директория не должна считаться исполняемым файлом
-        let result = rename(dir).await;
-        assert!(result.is_err(), "директория не должна считаться исполняемым файлом");
+        let result = rename(dir, Path::new("")).await;
+        assert!(result.is_err());
 
-        // Шаг 4: проверяем тип ошибки
-        let err = result.unwrap_err();
-        match err {
-            ComposerError::CoreExecutableNotFound { .. } => {
-                // Ожидаемое поведение: директория проигнорирована, файл не найден
-            },
+        match result.unwrap_err() {
+            ComposerError::CoreExecutableNotFound { .. } => {},
             other => panic!("ожидали CoreExecutableNotFound, получили: {other:?}"),
         }
 
-        // Шаг 5: директория-обманка осталась нетронутой
-        assert!(decoy_dir.exists(), "директория-обманка не должна быть затронута");
-        assert!(decoy_dir.is_dir(), "обманка должна оставаться директорией");
+        // other.exe не тронут
+        assert!(dir.join("other.exe").exists());
+    }
+
+    /// Директория с именем VoxelCore.exe — игнорируется (ищем только файлы).
+    #[cfg(target_os = "windows")]
+    #[tokio::test]
+    async fn rename_ignores_directories() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+
+        fs::create_dir(dir.join("VoxelCore.exe")).unwrap();
+
+        let result = rename(dir, Path::new("")).await;
+        assert!(result.is_err());
+    }
+
+    // ── Linux / macOS: rename() через direct path ────────────────
+
+    /// Скачанный файл перемещается и переименовывается.
+    #[cfg(not(target_os = "windows"))]
+    #[tokio::test]
+    async fn rename_moves_direct_file() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+
+        let downloaded = dir.join("voxelcore-0.31.0.AppImage");
+        fs::write(&downloaded, b"appimage-data").unwrap();
+
+        rename(dir, &downloaded).await.unwrap();
+
+        let dest = dir.join(name());
+        assert!(dest.exists());
+        assert_eq!(fs::read(&dest).unwrap(), b"appimage-data");
+        assert!(!downloaded.exists());
+    }
+
+    /// Файл уже с правильным именем — ничего не делаем.
+    #[cfg(not(target_os = "windows"))]
+    #[tokio::test]
+    async fn rename_already_correct() {
+        let tmp = TempDir::new().unwrap();
+        let dir = tmp.path();
+
+        let target = dir.join(name());
+        fs::write(&target, b"already-correct").unwrap();
+
+        rename(dir, &target).await.unwrap();
+
+        assert!(target.exists());
+        assert_eq!(fs::read(&target).unwrap(), b"already-correct");
     }
 }
