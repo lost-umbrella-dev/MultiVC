@@ -58,7 +58,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
-use clients::prelude::{DownloadProgress, ProgressSink};
+use clients::{DownloadProgress, ProgressSink};
 
 /// Максимально абстрактный хук для перерисовки UI.
 ///

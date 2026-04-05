@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use clients::{hash::Hash, item::Item, prelude::ClientVariant};
+use clients::{hash::Hash, item::Item};
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 
@@ -7,8 +7,6 @@ use serde::{Deserialize, Serialize};
 pub struct LockItem {
     /// Meta
     pub item: Item,
-    /// Откуда/Кем скачан
-    pub provider: ClientVariant,
     /// Когда был скачан/обновлён
     pub timestamp: DateTime<Utc>,
 }

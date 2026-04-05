@@ -1,4 +1,4 @@
-use clients::clients::Clients;
+use clients::Clients;
 
 // пока что нет провайдеров для контент паков
 

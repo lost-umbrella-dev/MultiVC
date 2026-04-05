@@ -16,7 +16,7 @@ impl Composer {
     /// файл в `core.{ext}`, хэширует и регистрирует в lock.
     ///
     /// Каждый [`DownloadRequest`] может содержать per-item
-    /// [`ProgressSink`](clients::prelude::ProgressSink) для отслеживания прогресса.
+    /// [`ProgressSink`](clients::ProgressSink) для отслеживания прогресса.
     ///
     /// Возвращает:
     /// - `Ok(None)` — все элементы установлены успешно.

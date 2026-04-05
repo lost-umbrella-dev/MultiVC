@@ -11,6 +11,7 @@
 //! rx.recv() ◄──────────────────── tx.send(Event)
 //! ```
 
+use clients::github::GitHubListOptions;
 use clients::hash::Hash;
 use clients::item::Item;
 
@@ -50,7 +51,7 @@ pub enum Command {
     /// Получить список доступных версий ядер.
     ///
     /// `search_version` — фильтр по версиям (пустой = все).
-    FetchCoresList { search_version: Vec<String> },
+    FetchCoresList { search_version: GitHubListOptions },
 
     /// Получить конкретную версию ядра.
     FetchCore { version: String },

@@ -30,6 +30,7 @@ pub struct Item {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ItemDependence {
     /// Name of the dependent item
+    // TODO: change to hash
     pub name: String,
     /// Version of the dependent item
     ///

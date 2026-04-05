@@ -3,15 +3,6 @@ use serde::Deserialize;
 
 use crate::hash::Hash;
 
-// fn strip_hash_prefix_opt<'de, D>(deserializer: D) -> std::result::Result<Option<Hash>, D::Error>
-// where
-//     D: serde::Deserializer<'de>,
-// {
-//     let s: Option<String> = Option::deserialize(deserializer)?;
-//     Ok(s.map(|s| s.split_once(':').map(|(_, v)| v.to_owned()).unwrap_or(s))
-//         .map(Hash::SHA256))
-// }
-
 #[derive(Debug, Deserialize, Clone)]
 pub struct Release {
     /// API Ссылка на релиз

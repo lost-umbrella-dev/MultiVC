@@ -1,7 +1,8 @@
 use chrono::Utc;
+use clients::ProgressSink;
+use clients::github::GithubClient;
 use clients::hash::Hash;
 use clients::item::Item;
-use clients::prelude::{ClientDownload, ClientGeneral, ProgressSink};
 use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 use tracing::Instrument;
@@ -21,13 +22,10 @@ use super::executable;
 /// исполняемого файла в `core.{ext}` → хэширование → commit в хранилище.
 ///
 /// Возвращает `(Hash, LockItem)` при успехе или `(Item, ComposerError)` при ошибке.
-pub async fn download_and_prepare<C>(
-    client: &C,
+pub async fn download_and_prepare(
+    client: &GithubClient,
     request: DownloadRequest,
-) -> std::result::Result<(Hash, LockItem), (Item, ComposerError)>
-where
-    C: ClientDownload + ClientGeneral + Sync,
-{
+) -> std::result::Result<(Hash, LockItem), (Item, ComposerError)> {
     let DownloadRequest { item, progress } = request;
 
     let span = tracing::debug_span!(
@@ -37,10 +35,7 @@ where
         item.size = item.size,
     );
 
-    match prepare_inner::<C>(client, &item, progress.as_deref())
-        .instrument(span)
-        .await
-    {
+    match prepare_inner(client, &item, progress.as_deref()).instrument(span).await {
         Ok(dir_hash) => {
             tracing::debug!(
                 name = %item.name,
@@ -52,7 +47,6 @@ where
                 dir_hash,
                 LockItem {
                     item,
-                    provider: client.variant(),
                     timestamp: Utc::now(),
                 },
             ))
@@ -78,10 +72,7 @@ where
 /// 4. Переименование исполняемого файла → `core.{ext}`
 /// 5. Хэширование (после переименования — хэш включает каноническое имя)
 /// 6. Commit в хранилище lock-а
-async fn prepare_inner<C>(client: &C, item: &Item, progress: Option<&dyn ProgressSink>) -> Result<Hash>
-where
-    C: ClientDownload + ClientGeneral + Sync,
-{
+async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn ProgressSink>) -> Result<Hash> {
     // 1. Staging directory
     tracing::debug!("creating staging directory");
     let folder = CoresLock::folder_name().to_path_buf();
@@ -97,7 +88,9 @@ where
     // 2. Download
     let mut archive_file = tokio::fs::File::create(&archive_path).await?;
     tracing::debug!(url = %item.url, "downloading archive");
-    client.download(item, &mut archive_file, progress).await?;
+    clients::download(&client.client, item, &mut archive_file, progress)
+        .instrument(client.span())
+        .await?;
     archive_file.flush().await?;
     drop(archive_file);
 

@@ -1,79 +1,34 @@
-use clients::clients::github::client::GithubClient;
+use clients::github::{GitHubGetOptions, GitHubListOptions, GithubClient};
+use tracing::subscriber::DefaultGuard;
 use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_tree::HierarchicalLayer;
 
 /// Создает тестовый клиент Github
 fn create_test_client() -> GithubClient {
     GithubClient::new("MihailRis".to_owned(), "voxelcore".to_owned()).expect("Не удалось создать Github клиент")
 }
 
-use tracing::subscriber::DefaultGuard;
-use tracing_subscriber::{EnvFilter, fmt};
+fn init_test_tracing() -> DefaultGuard {
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug"));
 
-pub fn init_test_tracing() -> DefaultGuard {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("trace,serde=trace,serde_json=trace,reqwest=debug"));
-
-    let subscriber = fmt()
-        .with_env_filter(filter)
-        .with_ansi_sanitization(true)
-        .compact()
-        .with_test_writer()
-        .with_target(false)
-        .with_thread_names(false)
-        .with_line_number(false)
-        .with_file(false)
-        .without_time()
-        .finish();
+    let subscriber = tracing_subscriber::registry().with(filter).with(
+        HierarchicalLayer::new(2)
+            .with_ansi(true)
+            .with_targets(true)
+            .with_bracketed_fields(true)
+            .with_thread_names(false)
+            .with_indent_lines(true),
+    );
 
     tracing::subscriber::set_default(subscriber)
 }
 
-/// Тест для получения всех релизов репозитория
-#[tokio::test]
-// #[ignore = "Требует работающий API сервер"]
-async fn test_get_all_releases() {
-    let _guard = init_test_tracing();
-    let client = create_test_client();
-
-    let result = client.get_all_releases().await;
-
-    match result {
-        Ok(releases) => {
-            info!("Получено {} релизов", releases.len());
-            assert!(!releases.is_empty(), "Ожидался непустой список релизов");
-
-            // Проверяем структуру первого релиза
-            let first_release = &releases[0];
-            assert!(!first_release.url.is_empty(), "URL релиза не должен быть пустым");
-            assert!(
-                !first_release.html_url.is_empty(),
-                "HTML URL релиза не должен быть пустым"
-            );
-            assert!(!first_release.tag_name.is_empty(), "Tag name не должен быть пустым");
-            assert!(
-                !first_release.tarball_url.is_empty(),
-                "Tarball URL не должен быть пустым"
-            );
-            assert!(
-                !first_release.zipball_url.is_empty(),
-                "Zipball URL не должен быть пустым"
-            );
-            assert!(
-                !first_release.assets.is_empty(),
-                "Релиз должен содержать хотя бы один asset"
-            );
-        },
-        Err(e) => {
-            error!("Ошибка при получении списка релизов: {:?}", e);
-            // В тестовом окружении это может быть ожидаемо
-            // assert!(false, "Не удалось получить список релизов");
-        },
-    }
-}
+// ── Low-level API ────────────────────────────────────────────────────
 
 /// Тест для получения последнего релиза репозитория
 #[tokio::test]
-// #[ignore = "Требует работающий API сервер"]
 async fn test_get_latest_release() {
     let _guard = init_test_tracing();
     let client = create_test_client();
@@ -92,51 +47,168 @@ async fn test_get_latest_release() {
         },
         Err(e) => {
             error!("Ошибка при получении последнего релиза: {:?}", e);
-            // В тестовом окружении это может быть ожидаемо
-            // assert!(false, "Не удалось получить последний релиз");
         },
     }
 }
 
-/// Тест для скачивания последнего релиза
+// ── High-level API (list / get) ──────────────────────────────────────
+
+/// Тест для получения всех релизов
 #[tokio::test]
-// #[ignore = "Требует работающий API сервер и может занять время"]
-async fn test_download_latest_release() {
+async fn test_list_all_releases() {
     let _guard = init_test_tracing();
     let client = create_test_client();
 
-    // Сначала получаем последний релиз
-    let release_result = client.get_latest_release().await;
+    let result = client.list(GitHubListOptions { search_version: vec![] }).await;
 
-    let release = match release_result {
-        Ok(release) => {
-            info!("Получен последний релиз для скачивания: {}", release.tag_name);
-            release
+    match result {
+        Ok(items) => {
+            info!("Получено {} релизов", items.len());
+            assert!(!items.is_empty(), "Ожидался непустой список релизов");
+
+            let first_item = &items[0];
+            assert!(!first_item.name.is_empty(), "Имя релиза не должно быть пустым");
+            assert!(!first_item.version.is_empty(), "Версия не должна быть пустой");
+            assert!(!first_item.url.is_empty(), "URL релиза не должен быть пустым");
+            assert!(first_item.size > 0, "Размер релиза должен быть больше нуля");
         },
         Err(e) => {
-            error!("Ошибка при получении последнего релиза для скачивания: {:?}", e);
-            // В тестовом окружении это может быть ожидаемо
+            error!("Ошибка при получении списка релизов: {:?}", e);
+        },
+    }
+}
+
+/// Тест для получения релизов с фильтрацией по версии
+#[tokio::test]
+async fn test_list_releases_with_version_filter() {
+    let _guard = init_test_tracing();
+    let client = create_test_client();
+
+    let all_releases = client.list(GitHubListOptions { search_version: vec![] }).await;
+
+    let first_version = match all_releases {
+        Ok(items) if !items.is_empty() => items[0].version.clone(),
+        _ => return,
+    };
+
+    info!("Ищем релизы с версией, содержащей: {}", first_version);
+
+    let result = client
+        .list(GitHubListOptions {
+            search_version: vec![first_version.clone()],
+        })
+        .await;
+
+    match result {
+        Ok(items) => {
+            info!(
+                "Найдено {} релизов с версией, содержащей '{}'",
+                items.len(),
+                first_version
+            );
+            assert!(!items.is_empty(), "Ожидался непустой список отфильтрованных релизов");
+
+            for item in &items {
+                assert!(
+                    item.version.contains(&first_version),
+                    "Версия {} должна содержать {}",
+                    item.version,
+                    first_version
+                );
+            }
+        },
+        Err(e) => {
+            error!("Ошибка при получении отфильтрованного списка релизов: {:?}", e);
+        },
+    }
+}
+
+/// Тест для получения конкретного релиза по версии
+#[tokio::test]
+async fn test_get_item_by_version() {
+    let _guard = init_test_tracing();
+    let client = create_test_client();
+
+    let all_releases = client.list(GitHubListOptions { search_version: vec![] }).await;
+
+    let first_version = match all_releases {
+        Ok(items) if !items.is_empty() => items[0].version.clone(),
+        _ => return,
+    };
+
+    info!("Получаем релиз по версии: {}", first_version);
+
+    let result = client
+        .get(GitHubGetOptions {
+            version: first_version.clone(),
+        })
+        .await;
+
+    match result {
+        Ok(Some(item)) => {
+            info!("Получен релиз по версии {}: {}", first_version, item.name);
+            assert_eq!(item.version, first_version, "Версия должна совпадать");
+            assert!(!item.name.is_empty(), "Имя релиза не должно быть пустым");
+            assert!(!item.url.is_empty(), "URL релиза не должен быть пустым");
+            assert!(item.size > 0, "Размер релиза должен быть больше нуля");
+        },
+        Ok(None) => {
+            info!("Не найден релиз для версии {}", first_version);
+        },
+        Err(e) => {
+            error!("Ошибка при получении релиза по версии: {:?}", e);
+        },
+    }
+}
+
+// ── Download ─────────────────────────────────────────────────────────
+
+/// Тест для скачивания релиза
+#[tokio::test]
+async fn test_download_item() {
+    let _guard = init_test_tracing();
+    let client = create_test_client();
+
+    let result = client.list(GitHubListOptions { search_version: vec![] }).await;
+
+    let item = match result {
+        Ok(items) if !items.is_empty() => {
+            info!("Получен первый релиз для скачивания: {}", items[0].name);
+            items[0].clone()
+        },
+        Ok(_) => {
+            info!("Нет доступных релизов для скачивания");
             return;
-            // assert!(false, "Не удалось получить последний релиз для скачивания");
+        },
+        Err(e) => {
+            error!("Ошибка при получении списка релизов: {:?}", e);
+            return;
         },
     };
 
-    // Скачиваем релиз
-    let download_result = client.download_release(&release).await;
+    let download_result = client.client.get(&item.url).send().await;
 
     match download_result {
-        Ok(bytes) => {
+        Ok(response) => {
             info!(
-                "Успешно скачан релиз {}, размер: {} байт",
-                release.tag_name,
-                bytes.len()
+                "Успешно начато скачивание релиза {}, статус: {}",
+                item.name,
+                response.status()
             );
-            assert!(!bytes.is_empty(), "Скачанные данные не должны быть пустыми");
+
+            match response.bytes().await {
+                Ok(bytes) => {
+                    info!("Успешно скачан релиз {}, размер: {} байт", item.name, bytes.len());
+                    assert!(!bytes.is_empty(), "Скачанные данные не должны быть пустыми");
+                },
+                Err(e) => {
+                    error!("Ошибка при чтении байтов из ответа: {:?}", e);
+                },
+            }
         },
         Err(e) => {
-            error!("Ошибка при скачивании релиза: {:?}", e);
-            // Это может быть ожидаемо, если нет подходящего asset для текущей системы
-            info!("Примечание: Это может быть ожидаемо, если нет подходящего asset для текущей системы");
+            error!("Ошибка при отправке запроса на скачивание: {:?}", e);
+            info!("Примечание: Это может быть ожидаемо, если сервер недоступен");
         },
     }
 }

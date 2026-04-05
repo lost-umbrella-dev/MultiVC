@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use clients::{hash::Hash, item::Item, prelude::ProgressSink};
+use clients::{ProgressSink, hash::Hash, item::Item};
 use tracing::instrument;
 
 use crate::{
