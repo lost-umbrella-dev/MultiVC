@@ -25,6 +25,10 @@ pub enum ComposerError {
     },
     #[error("Core executable not found in `{path}`")]
     CoreExecutableNotFound { path: PathBuf },
+    #[error("Item is missing `zipball_url`, required for resource extraction")]
+    ZipballUrlMissing,
+    #[error("Resource directory `res/` not found in zipball archive `{path}`")]
+    ResNotFound { path: PathBuf },
 }
 
 #[derive(Error, Debug)]

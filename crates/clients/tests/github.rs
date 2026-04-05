@@ -101,7 +101,7 @@ async fn test_list_releases_with_version_filter() {
 
     let result = client
         .list(GitHubListOptions {
-            search_version: vec![first_version.clone()],
+            search_version: vec![first_version.parse().expect("failed to parse version")],
         })
         .await;
 
@@ -146,7 +146,7 @@ async fn test_get_item_by_version() {
 
     let result = client
         .get(GitHubGetOptions {
-            version: first_version.clone(),
+            version: first_version.parse().expect("failed to parse version"),
         })
         .await;
 

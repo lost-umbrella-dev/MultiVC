@@ -14,6 +14,7 @@
 use clients::github::GitHubListOptions;
 use clients::hash::Hash;
 use clients::item::Item;
+use clients::version::Version;
 
 use crate::DownloadRequest;
 use crate::error::ComposerError;
@@ -63,7 +64,7 @@ pub enum Command {
     FetchCoresList { search_version: GitHubListOptions },
 
     /// Получить конкретную версию ядра.
-    FetchCore { version: String },
+    FetchCore { version: Version },
 
     /// Завершить background-поток.
     Shutdown,

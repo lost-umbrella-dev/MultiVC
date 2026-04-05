@@ -13,6 +13,10 @@ pub struct Item {
     pub version: String,
     /// Download url
     pub url: String,
+    /// Ссылка на source zipball (GitHub).
+    ///
+    /// Используется на Linux/macOS для извлечения папки `res/` из исходников.
+    pub zipball_url: Option<String>,
     /// Хэш при скачивании
     ///
     /// Нужен для:

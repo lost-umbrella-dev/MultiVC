@@ -1,9 +1,10 @@
 use clients::Clients;
+use clients::hash::Hash;
 
 // пока что нет провайдеров для контент паков
 
 use crate::error::Result;
-use crate::item::LockMap;
+use crate::item::{LockItem, LockMap};
 // use crate::lock::content::ContentsLock;
 use crate::lock::core::CoresLock;
 use crate::lock::instances::InstancesLock;
@@ -99,6 +100,30 @@ impl Composer {
     /// Прямой доступ к элементам инстансов.
     pub fn instances_items(&self) -> &LockMap {
         self.instances.items()
+    }
+}
+
+// ── Remove ───────────────────────────────────────────────────────────
+
+impl Composer {
+    /// Удаляет ядро по хэшу: убирает из lock и удаляет директорию с диска.
+    ///
+    /// Lock-файл **не** сохраняется автоматически — вызывающий код
+    /// должен вызвать [`save_cores()`](Self::save_cores) после.
+    ///
+    /// Возвращает удалённый элемент, или `None` если элемент не найден.
+    pub async fn remove_core(&self, hash: &Hash) -> Result<Option<LockItem>> {
+        self.cores.remove(hash).await
+    }
+
+    /// Удаляет инстанс по хэшу: убирает из lock и удаляет директорию с диска.
+    ///
+    /// Lock-файл **не** сохраняется автоматически — вызывающий код
+    /// должен вызвать [`save_instances()`](Self::save_instances) после.
+    ///
+    /// Возвращает удалённый элемент, или `None` если элемент не найден.
+    pub async fn remove_instance(&self, hash: &Hash) -> Result<Option<LockItem>> {
+        self.instances.remove(hash).await
     }
 }
 

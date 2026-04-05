@@ -20,7 +20,7 @@ use super::executable;
 ///
 /// Полный цикл зависит от платформы:
 /// - **Windows**: скачивание zip → распаковка → поиск `VoxelCore.exe` → переименование в `core.exe` → хэширование → commit.
-/// - **Linux / macOS**: скачивание файла напрямую → переименование в `core.{ext}` → хэширование → commit.
+/// - **Linux / macOS**: скачивание файла → скачивание zipball → извлечение `res/` → переименование в `core.{ext}` → хэширование → commit.
 ///
 /// Возвращает `(Hash, LockItem)` при успехе или `(Item, ComposerError)` при ошибке.
 pub async fn download_and_prepare(
@@ -72,7 +72,8 @@ pub async fn download_and_prepare(
 ///   переименовывает в `core.exe`, хэширует директорию, коммитит.
 ///
 /// - **Linux / macOS**: скачивает файл напрямую (`.AppImage` / `.dmg`),
-///   переименовывает в `core.{ext}`, хэширует директорию, коммитит.
+///   скачивает zipball и извлекает `res/`, переименовывает в `core.{ext}`,
+///   хэширует директорию, коммитит.
 async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn ProgressSink>) -> Result<Hash> {
     // 1. Staging directory
     tracing::debug!("creating staging directory");
@@ -120,6 +121,8 @@ async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn
 
     #[cfg(not(target_os = "windows"))]
     {
+        use crate::utils::archive;
+
         // 2. Download file directly
         let original_name = item.url.rsplit('/').next().unwrap_or("downloaded_core");
         let download_path = content_dir.join(original_name);
@@ -132,7 +135,37 @@ async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn
         file.flush().await?;
         drop(file);
 
-        // 3. Rename → core.{ext}
+        // 3. Download zipball and extract res/
+        let zipball_url = item.zipball_url.as_deref().ok_or(ComposerError::ZipballUrlMissing)?;
+        let zipball_path = temp_dir.path().join("zipball.zip");
+
+        tracing::debug!(url = %zipball_url, "downloading zipball for res/");
+        let zipball_response = client
+            .client
+            .get(zipball_url)
+            .send()
+            .await
+            .map_err(clients::error::ClientError::from)?;
+        let zipball_bytes = zipball_response
+            .bytes()
+            .await
+            .map_err(clients::error::ClientError::from)?;
+        tokio::fs::write(&zipball_path, &zipball_bytes).await?;
+
+        let zipball_extract = zipball_path.clone();
+        let content_extract = content_dir.clone();
+        let found_res =
+            tokio::task::spawn_blocking(move || archive::extract_res_from_zip(&zipball_extract, &content_extract))
+                .await
+                .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
+
+        if !found_res {
+            return Err(ComposerError::ResNotFound { path: zipball_path });
+        }
+
+        tracing::debug!("res/ extracted from zipball");
+
+        // 4. Rename → core.{ext}
         tracing::debug!("renaming → {}", executable::name());
         executable::rename(&content_dir, &download_path).await?;
     }

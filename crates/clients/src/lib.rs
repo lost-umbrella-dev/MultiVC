@@ -3,6 +3,7 @@ pub mod error;
 pub mod github;
 pub mod hash;
 pub mod item;
+pub mod version;
 
 pub use download::{DownloadProgress, ProgressSink, download};
 
@@ -27,4 +28,5 @@ pub mod prelude {
     pub use crate::error::{ClientError, Result};
     pub use crate::hash::Hash;
     pub use crate::item::{Item, ItemDependence};
+    pub use crate::version::Version;
 }

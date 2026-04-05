@@ -45,6 +45,7 @@ pub fn make_item(name: &str, version: &str) -> Item {
         name: name.to_owned(),
         version: version.to_owned(),
         url: format!("https://example.com/{name}/{version}"),
+        zipball_url: None,
         hash: None,
         size: 1024,
         dependencies: None,

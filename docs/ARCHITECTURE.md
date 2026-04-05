@@ -29,7 +29,7 @@ HTTP-клиенты, download pipeline и общие типы данных.
   - Репо VoxelCore: `"MihailRis"`, `"VoxelCore"`.
 - **`GitHubListOptions`** — `{ search_version: Vec<String> }`.
 - **`GitHubGetOptions`** — `{ version: String }`.
-- **`Item`** — `{ name, version, url, hash: Option<Hash>, size, dependencies, supported_engine }`.
+- **`Item`** — `{ name, version, url, zipball_url: Option<String>, hash: Option<Hash>, size, dependencies, supported_engine }`.
 - **`Hash`** — `SHA256(String) | SHA512(String)`, Display как `"sha256:..."`, FromStr.
 - **`DownloadProgress`** — `{ downloaded: u64, total: Option<u64> }`, метод `fraction()`.
 - **`ProgressSink`** — trait для получения прогресса загрузки.
@@ -164,7 +164,7 @@ pub struct DownloadRequest { pub item: Item, pub progress: Option<Box<dyn Progre
 - **`pipeline.rs`** — `download_and_prepare()`:
   - Единая `prepare_inner()` с `#[cfg]` блоками внутри.
   - **Windows**: download zip → extract → `rename(dir, _)` → hash dir → commit.
-  - **Linux/macOS**: download file → `rename(dir, source)` → hash dir → commit.
+  - **Linux/macOS**: download file → download zipball → extract `res/` → `rename(dir, source)` → hash dir → commit.
   - Общие шаги: staging dir, hash, `commit_extracted_dir`.
 
 - **`install.rs`** — `Composer::install_cores()`: параллельный запуск pipeline через `stream::buffer_unordered(8)`.
@@ -176,6 +176,8 @@ pub enum ComposerError {
     Io, Serialise, Desirialise, Client, Validation, ValidationSingle,
     Archive { path, source: ArchiveError },
     CoreExecutableNotFound { path },
+    ZipballUrlMissing,
+    ResNotFound { path },
 }
 ```
 

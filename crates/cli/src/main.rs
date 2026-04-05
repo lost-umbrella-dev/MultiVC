@@ -3,21 +3,40 @@
 //! Clap-based интерфейс командной строки, работающий напрямую с [`Composer`]
 //! без каналов Command/Event (они нужны только GUI/TUI).
 
-use std::str::FromStr;
-
 use clap::{Parser, Subcommand};
 use clients::{
     Clients,
     github::{GitHubGetOptions, GitHubListOptions, GithubClient},
     hash::Hash,
+    version::Version,
 };
-use composer::{Composer, DownloadRequest, lock::ValidateReason};
+use composer::{
+    Composer, DownloadRequest,
+    item::{LockItem, LockMap},
+    lock::ValidateReason,
+};
 
 // ── CLI определения ──────────────────────────────────────────────────
 
 /// CLI лаунчер для VoxelCore
 #[derive(Parser)]
-#[command(name = "multivc", version, about = "CLI лаунчер для VoxelCore")]
+#[command(
+    name = "multivc",
+    version,
+    author = "TOwInOK",
+    about = "MultiVC — CLI лаунчер для VoxelCore",
+    long_about = "MultiVC — CLI лаунчер для VoxelCore.\n\n\
+        Управляет установкой, обновлением и удалением ядер VoxelCore.\n\
+        Поддерживает автоматическую загрузку с GitHub, валидацию целостности\n\
+        и хранение состояния в lock-файлах.",
+    after_help = "Примеры:\n  \
+        multivc install 0.31.1       Установить ядро v0.31.1\n  \
+        multivc ls                   Список установленных ядер\n  \
+        multivc fetch                Все доступные версии с GitHub\n  \
+        multivc rm 0.31.1            Удалить ядро по версии\n  \
+        multivc check                Проверить целостность\n\n\
+        Репозиторий: https://github.com/lost-umbrella-dev/MultiVC"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -27,28 +46,33 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Установить ядро указанной версии
+    #[command(visible_aliases = ["i", "add", "get"])]
     Install {
-        /// Версия ядра для установки (например "1.2.3")
-        version: String,
+        /// Версия ядра для установки (например "0.24.0" или "v0.24.0")
+        version: Version,
     },
 
     /// Показать список установленных ядер
+    #[command(visible_aliases = ["ls", "l"])]
     List,
 
     /// Получить список доступных версий с GitHub
+    #[command(visible_aliases = ["f", "search"])]
     Fetch {
-        /// Фильтр по версии (можно указать несколько: --version 1.0 --version 2.0)
+        /// Фильтр по версии (можно указать несколько: --version 1.0.0 --version 2.0.0)
         #[arg(long = "version")]
-        versions: Vec<String>,
+        versions: Vec<Version>,
     },
 
     /// Проверить целостность установленных ядер и инстансов
+    #[command(visible_aliases = ["check", "verify", "v"])]
     Validate,
 
-    /// Удалить ядро по хэшу
+    /// Удалить установленное ядро (по версии или префиксу хэша)
+    #[command(visible_aliases = ["rm", "r", "uninstall", "delete"])]
     Remove {
-        /// Хэш ядра (формат: sha256:abcdef... или sha512:abcdef...)
-        hash: String,
+        /// Версия (например "0.31.1") или начало хэша (например "sha256:ab" или "ab3f")
+        query: String,
     },
 }
 
@@ -106,6 +130,40 @@ async fn load_composer() -> Result<Composer, Box<dyn std::error::Error>> {
     Ok(Composer::load(clients).await?)
 }
 
+/// Ищет ядра по запросу: версия или префикс хэша.
+///
+/// 1. Если `query` парсится как [`Version`] — ищет по версии (с дефолтным `v` префиксом).
+/// 2. Иначе — ищет по префиксу строкового представления хэша (`sha256:abc...`)
+///    или по префиксу hex-части (`abc...`).
+fn find_cores_by_query(cores: &LockMap, query: &str) -> Vec<(Hash, LockItem)> {
+    // 1. Пробуем распарсить как версию
+    if let Ok(version) = query.parse::<Version>() {
+        let prefixed = version.clone().with_default_prefix().to_string();
+        let literal = version.to_string();
+        let matches: Vec<_> = cores
+            .iter()
+            .filter(|entry| {
+                let v = &entry.value().item.version;
+                *v == prefixed || *v == literal
+            })
+            .map(|entry| (entry.key().clone(), entry.value().clone()))
+            .collect();
+        if !matches.is_empty() {
+            return matches;
+        }
+    }
+
+    // 2. Поиск по префиксу хэша (полному "sha256:ab..." или только hex "ab...")
+    cores
+        .iter()
+        .filter(|entry| {
+            let hash_str = entry.key().to_string();
+            hash_str.starts_with(query) || hash_str.split_once(':').is_some_and(|(_, hex)| hex.starts_with(query))
+        })
+        .map(|entry| (entry.key().clone(), entry.value().clone()))
+        .collect()
+}
+
 // ── Entry point ──────────────────────────────────────────────────────
 
 #[tokio::main]
@@ -121,6 +179,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ── install ──────────────────────────────────────────────
         Commands::Install { version } => {
             // Ищем ядро нужной версии через GitHub API
+            let version = version.with_default_prefix();
             let query_client = create_github_client()?;
             let item = query_client
                 .get(GitHubGetOptions {
@@ -129,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .await?
                 .ok_or_else(|| format!("Ядро версии «{version}» не найдено на GitHub"))?;
 
-            println!("Найдено: {} v{} ({})", item.name, item.version, format_size(item.size),);
+            println!("Найдено: {} {} ({})", item.name, item.version, format_size(item.size),);
 
             // Создаём Composer и запускаем установку (без прогресс-бара)
             let composer = load_composer().await?;
@@ -190,6 +249,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // ── fetch ────────────────────────────────────────────────
         Commands::Fetch { versions } => {
             let client = create_github_client()?;
+            let versions = versions.into_iter().map(Version::with_default_prefix).collect();
             let items = client
                 .list(GitHubListOptions {
                     search_version: versions,
@@ -231,18 +291,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
 
         // ── remove ───────────────────────────────────────────────
-        Commands::Remove { hash } => {
-            let _hash = Hash::from_str(&hash).map_err(|e| format!("Некорректный формат хэша «{hash}»: {e}"))?;
+        Commands::Remove { query } => {
+            let composer = load_composer().await?;
+            let matches = find_cores_by_query(composer.cores_items(), &query);
 
-            // TODO: добавить Composer::remove_core(&self, hash: &Hash)
-            //
-            // Предполагаемая логика:
-            //   1. composer.remove_core(&_hash).await?;
-            //   2. composer.save_cores().await?;
-            //
-            // Поля cores/instances в Composer имеют видимость pub(crate),
-            // поэтому нужен публичный метод remove_core() на стороне composer.
-            unimplemented!("TODO: add Composer::remove_core() — поля Lock pub(crate)");
+            match matches.len() {
+                0 => {
+                    eprintln!("Ядро не найдено по запросу «{query}»");
+                    std::process::exit(1);
+                },
+                1 => {
+                    let (hash, lock_item) = &matches[0];
+                    println!("Удаляю: «{}» {} ({hash})", lock_item.item.name, lock_item.item.version,);
+                    composer.remove_core(hash).await?;
+                    composer.save_cores().await?;
+                    println!("\u{2713} Ядро удалено");
+                },
+                n => {
+                    eprintln!("Найдено {n} совпадений, уточните запрос:");
+                    for (hash, lock_item) in &matches {
+                        let hash_str = hash.to_string();
+                        let hash_short = if hash_str.len() > 20 {
+                            format!("{}..", &hash_str[..20])
+                        } else {
+                            hash_str
+                        };
+                        eprintln!("  {} {} ({})", lock_item.item.name, lock_item.item.version, hash_short,);
+                    }
+                    std::process::exit(1);
+                },
+            }
         },
     }
 

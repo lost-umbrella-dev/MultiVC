@@ -2,6 +2,8 @@ pub mod types;
 
 use std::sync::OnceLock;
 
+use crate::version::Version;
+
 use reqwest::Client;
 use tracing::{Span, instrument};
 use url::Url;
@@ -91,7 +93,11 @@ impl GithubClient {
             .await?
             .iter()
             .filter(|x| {
-                options.search_version.is_empty() || options.search_version.iter().any(|v| x.tag_name.contains(v))
+                options.search_version.is_empty()
+                    || options
+                        .search_version
+                        .iter()
+                        .any(|v| x.tag_name.contains(&v.to_string()))
             })
             .filter_map(|x| {
                 let asset = x.assets.iter().find(|a| asset_matches_current_system(&a.name));
@@ -103,6 +109,7 @@ impl GithubClient {
                     size: a.size,
                     dependencies: None,
                     supported_engine: None,
+                    zipball_url: Some(x.zipball_url.to_owned()),
                 })
             })
             .collect())
@@ -120,11 +127,11 @@ impl GithubClient {
 }
 
 pub struct GitHubGetOptions {
-    pub version: String,
+    pub version: Version,
 }
 
 pub struct GitHubListOptions {
-    pub search_version: Vec<String>,
+    pub search_version: Vec<Version>,
 }
 
 pub fn asset_matches_current_system(name: &str) -> bool {
