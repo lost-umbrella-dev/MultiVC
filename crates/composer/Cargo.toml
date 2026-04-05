@@ -27,5 +27,10 @@ sha2.workspace = true
 tempfile = "3.27.0"
 zip = "2"
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "chrono"] }
+tracing-tree = "0.3"
+
 [lints]
 workspace = true
