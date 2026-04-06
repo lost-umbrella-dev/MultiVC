@@ -151,7 +151,6 @@ fn instance_row(
 // ── Main render ──────────────────────────────────────────────────────
 
 /// Renders the Instances tab content.
-
 pub fn render(
     ui: &mut egui::Ui,
     state: &mut InstancesTabState,
@@ -245,10 +244,9 @@ pub fn render(
                         .button(lang::t("isettings.change_icon", lang))
                         .on_hover_text(lang::t("tip.formats", lang))
                         .clicked()
+                        && let Some(b64) = pick_image_as_base64()
                     {
-                        if let Some(b64) = pick_image_as_base64() {
-                            form.icon = b64;
-                        }
+                        form.icon = b64;
                     }
                 });
 
@@ -269,10 +267,9 @@ pub fn render(
                         .button(lang::t("isettings.change_banner", lang))
                         .on_hover_text(lang::t("tip.formats", lang))
                         .clicked()
+                        && let Some(b64) = pick_image_as_base64()
                     {
-                        if let Some(b64) = pick_image_as_base64() {
-                            form.banner = b64;
-                        }
+                        form.banner = b64;
                     }
                 });
 

@@ -48,23 +48,23 @@ pub(super) fn render(
     }
 
     // Poll in-flight image tasks
-    if let Some(ref task) = panel.icon_pick {
-        if let Some(result) = task.poll() {
-            match result {
-                Ok(b64) => panel.edit_icon = Some(b64),
-                Err(e) => tracing::error!("Icon pick failed: {e}"),
-            }
-            panel.icon_pick = None;
+    if let Some(ref task) = panel.icon_pick
+        && let Some(result) = task.poll()
+    {
+        match result {
+            Ok(b64) => panel.edit_icon = Some(b64),
+            Err(e) => tracing::error!("Icon pick failed: {e}"),
         }
+        panel.icon_pick = None;
     }
-    if let Some(ref task) = panel.banner_pick {
-        if let Some(result) = task.poll() {
-            match result {
-                Ok(b64) => panel.edit_banner = Some(b64),
-                Err(e) => tracing::error!("Banner pick failed: {e}"),
-            }
-            panel.banner_pick = None;
+    if let Some(ref task) = panel.banner_pick
+        && let Some(result) = task.poll()
+    {
+        match result {
+            Ok(b64) => panel.edit_banner = Some(b64),
+            Err(e) => tracing::error!("Banner pick failed: {e}"),
         }
+        panel.banner_pick = None;
     }
 
     let edit_desc = panel.edit_description.as_mut().unwrap();
