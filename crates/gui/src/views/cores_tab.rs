@@ -13,6 +13,7 @@ use composer::worker::WorkerHandle;
 
 use crate::state::CoresTabState;
 use crate::toasts;
+use crate::widgets::icon_button;
 use crate::widgets::ProgressRing;
 
 /// Результат рендера — действия, которые должен обработать App.
@@ -63,15 +64,23 @@ fn installed_core_row(
                 .on_hover_text(hash_full);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("+").on_hover_text("Create instance").clicked() {
+                if ui
+                    .add(icon_button("+"))
+                    .on_hover_text("Create instance")
+                    .clicked()
+                {
                     actions.create_instance = true;
                 }
 
                 if has_dependents {
                     let tooltip = format!("Used by: [ {} ]", dependents.join(", "));
-                    let btn = egui::Button::new(egui::RichText::new("\u{1F5D1}").color(egui::Color32::YELLOW));
+                    let btn = icon_button(egui::RichText::new("\u{1F5D1}").color(egui::Color32::YELLOW));
                     ui.add_enabled(false, btn).on_disabled_hover_text(tooltip);
-                } else if ui.button("\u{1F5D1}").on_hover_text("Delete").clicked() {
+                } else if ui
+                    .add(icon_button("\u{1F5D1}"))
+                    .on_hover_text("Delete")
+                    .clicked()
+                {
                     actions.delete = true;
                 }
             });
@@ -192,7 +201,7 @@ pub fn render(
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             // Validate
             if ui
-                .add_enabled(!global_busy, egui::Button::new("\u{2714}"))
+                .add_enabled(!global_busy, icon_button("\u{2714}"))
                 .on_hover_text("Validate cores")
                 .clicked()
             {
@@ -202,7 +211,7 @@ pub fn render(
 
             // Refresh
             if ui
-                .add_enabled(!global_busy, egui::Button::new("\u{21BB}"))
+                .add_enabled(!global_busy, icon_button("\u{21BB}"))
                 .on_hover_text("Fetch from GitHub")
                 .clicked()
             {
@@ -228,6 +237,8 @@ pub fn render(
             }
         });
     });
+
+    ui.separator();
 
     // ── Delete confirmation modal ────────────────────────────────
     if let Some((ref hash, ref display_name)) = state.confirm_remove.clone() {

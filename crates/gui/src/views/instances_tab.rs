@@ -12,6 +12,7 @@ use composer::worker::WorkerHandle;
 
 use crate::state::{InstanceForm, InstancesTabState};
 use crate::toasts;
+use crate::widgets::icon_button;
 
 // ── Row helpers ──────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ fn instance_row(
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Delete (right-most) — disabled when running
                 if ui
-                    .add_enabled(!is_busy && !is_running, egui::Button::new("\u{1F5D1}").small())
+                    .add_enabled(!is_busy && !is_running, icon_button("\u{1F5D1}"))
                     .on_hover_text(if is_running { "Stop instance first" } else { "Delete" })
                     .clicked()
                 {
@@ -61,7 +62,7 @@ fn instance_row(
 
                 // Open folder
                 if ui
-                    .add(egui::Button::new("\u{1F4C2}").small())
+                    .add(icon_button("\u{1F4C2}"))
                     .on_hover_text("Open folder")
                     .clicked()
                 {
@@ -69,14 +70,18 @@ fn instance_row(
                 }
 
                 // View log
-                if ui.button("\u{1F4C4}").on_hover_text("View log").clicked() {
+                if ui
+                    .add(icon_button("\u{1F4C4}"))
+                    .on_hover_text("View log")
+                    .clicked()
+                {
                     actions.view_log = true;
                 }
 
                 // Launch / Stop
                 if is_running {
                     if ui
-                        .button(egui::RichText::new("\u{23F9}").color(egui::Color32::RED))
+                        .add(icon_button(egui::RichText::new("\u{23F9}").color(egui::Color32::RED)))
                         .on_hover_text("Stop")
                         .clicked()
                     {
@@ -84,7 +89,7 @@ fn instance_row(
                     }
                     ui.colored_label(egui::Color32::GREEN, "Running");
                 } else if ui
-                    .add_enabled(!is_busy, egui::Button::new("\u{25B6}").small())
+                    .add_enabled(!is_busy, icon_button("\u{25B6}"))
                     .on_hover_text("Launch")
                     .clicked()
                 {
@@ -113,7 +118,7 @@ pub fn render(
 
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui
-                .add_enabled(!state.busy, egui::Button::new("\u{2714}"))
+                .add_enabled(!state.busy, icon_button("\u{2714}"))
                 .on_hover_text("Validate instances")
                 .clicked()
             {
@@ -121,7 +126,12 @@ pub fn render(
                 handle.try_send(Command::ValidateInstances);
             }
 
-            if ui.button("+").on_hover_text("New instance").clicked() && state.create_form.is_none() {
+            if ui
+                .add(icon_button("+"))
+                .on_hover_text("New instance")
+                .clicked()
+                && state.create_form.is_none()
+            {
                 state.create_form = Some(InstanceForm::default());
             }
         });
