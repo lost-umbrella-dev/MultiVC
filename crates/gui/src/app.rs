@@ -316,9 +316,10 @@ impl eframe::App for App {
                 // Handle cross-tab action: "+" button → switch to Instances with pre-selected core
                 if let Some(core_idx) = action.switch_to_instances_with_core {
                     self.current_tab = Tab::Instances;
-                    let mut form = InstanceForm::default();
-                    form.selected_core_idx = Some(core_idx);
-                    self.state.instances.create_form = Some(form);
+                    self.state.instances.create_form = Some(InstanceForm {
+                        selected_core_idx: Some(core_idx),
+                        ..Default::default()
+                    });
                 }
             },
             Tab::Instances => {

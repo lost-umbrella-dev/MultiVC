@@ -184,22 +184,21 @@ pub fn render(
                 let can_create = !form.name.is_empty() && form.selected_core_idx.is_some();
 
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(can_create, egui::Button::new("Create")).clicked() {
-                        if let Some(idx) = form.selected_core_idx {
-                            if let Some((hash, _)) = installed_cores.get(idx) {
-                                should_create_instance = Some((
-                                    form.name.clone(),
-                                    hash.clone(),
-                                    if form.description.is_empty() {
-                                        None
-                                    } else {
-                                        Some(form.description.clone())
-                                    },
-                                    form.icon.clone(),
-                                    form.banner.clone(),
-                                ));
-                            }
-                        }
+                    if ui.add_enabled(can_create, egui::Button::new("Create")).clicked()
+                        && let Some(idx) = form.selected_core_idx
+                        && let Some((hash, _)) = installed_cores.get(idx)
+                    {
+                        should_create_instance = Some((
+                            form.name.clone(),
+                            hash.clone(),
+                            if form.description.is_empty() {
+                                None
+                            } else {
+                                Some(form.description.clone())
+                            },
+                            form.icon.clone(),
+                            form.banner.clone(),
+                        ));
                     }
                     if ui.button("Cancel").clicked() {
                         should_cancel = true;
@@ -337,9 +336,7 @@ pub fn render(
     // ── Log viewer modal ─────────────────────────────────────────
     if let Some(ref instance_name) = state.log_viewer.clone() {
         let mut open = true;
-        let log_path = std::path::Path::new("instances")
-            .join(&instance_name)
-            .join("latest.log");
+        let log_path = std::path::Path::new("instances").join(instance_name).join("latest.log");
 
         let is_instance_running = state.running_instances.contains_key(instance_name);
 
@@ -366,12 +363,10 @@ pub fn render(
                             "Open in external editor"
                         })
                         .clicked()
+                        && log_path.exists()
+                        && let Err(e) = open::that(&log_path)
                     {
-                        if log_path.exists() {
-                            if let Err(e) = open::that(&log_path) {
-                                toasts::error(toasts_out, format!("Failed to open log: {e}"));
-                            }
-                        }
+                        toasts::error(toasts_out, format!("Failed to open log: {e}"));
                     }
                 });
 

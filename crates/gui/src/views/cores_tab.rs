@@ -81,6 +81,7 @@ fn installed_core_row(
     actions
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Renders a row in the available versions list.
 ///
 /// - Installed items show a checkmark (non-interactive) + optional reinstall.
