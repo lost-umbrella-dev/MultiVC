@@ -13,7 +13,7 @@ use crate::download_tracker::DownloadTracker;
 
 // ── Root state ───────────────────────────────────────────────────────
 
-/// Корневое UI-состояние, обновляемое из [`Event`]-ов.
+/// Корневое UI-состояние, обновляемое из `Event`-ов.
 #[derive(Default)]
 pub struct UiState {
     /// Данные вкладки «Ядра».

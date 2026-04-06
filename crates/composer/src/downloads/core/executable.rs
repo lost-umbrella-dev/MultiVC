@@ -1,7 +1,7 @@
+#[cfg(target_os = "windows")]
+use crate::error::ComposerError;
+use crate::error::Result;
 use std::path::Path;
-
-use crate::error::{ComposerError, Result};
-
 // ── Константы ────────────────────────────────────────────────────────
 
 /// Каноническое имя исполняемого файла ядра: `core.{ext}`.
