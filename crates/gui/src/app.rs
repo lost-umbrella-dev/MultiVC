@@ -305,6 +305,47 @@ impl eframe::App for App {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // Debug hotkeys (debug builds only):
+        //   F12 — debug_on_hover (highlight widget under cursor)
+        //   F11 — show_widget_hits (color widgets on hover/click)
+        //   F10 — egui Inspection Window (styles, fonts, textures)
+        #[cfg(debug_assertions)]
+        {
+            let ctx = ui.ctx();
+            if ctx.input(|i| i.key_pressed(egui::Key::F12)) {
+                let v = ctx.debug_on_hover();
+                ctx.set_debug_on_hover(!v);
+            }
+            if ctx.input(|i| i.key_pressed(egui::Key::F11)) {
+                ctx.style_mut(|s| s.debug.show_widget_hits = !s.debug.show_widget_hits);
+            }
+            if ctx.input(|i| i.key_pressed(egui::Key::F10)) {
+                // Store toggle in egui memory
+                let id = egui::Id::new("__debug_inspection");
+                let open = ctx.data_mut(|d| {
+                    let v = d.get_temp::<bool>(id).unwrap_or(false);
+                    d.insert_temp(id, !v);
+                    !v
+                });
+                if open {
+                    ctx.set_debug_on_hover(false); // avoid conflict
+                }
+            }
+            {
+                let id = egui::Id::new("__debug_inspection");
+                let open = ctx.data(|d| d.get_temp::<bool>(id).unwrap_or(false));
+                if open {
+                    let mut still_open = true;
+                    egui::Window::new("Inspector")
+                        .open(&mut still_open)
+                        .show(ctx, |ui| ctx.inspection_ui(ui));
+                    if !still_open {
+                        ctx.data_mut(|d| d.insert_temp(id, false));
+                    }
+                }
+            }
+        }
+
         // Toast container — recreated each frame (stores state in egui memory)
         let mut toasts = toasts::create_toasts();
 

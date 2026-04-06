@@ -205,7 +205,7 @@ pub fn render(
                     let selected_text = match form.selected_core_idx {
                         Some(idx) if idx < installed_cores.len() => {
                             let (_, li) = &installed_cores[idx];
-                            format!("{} {}", li.item.name, li.item.version)
+                            li.item.version.to_string()
                         },
                         _ => lang::t("form.select_core", lang).to_owned(),
                     };
@@ -213,14 +213,9 @@ pub fn render(
                     egui::ComboBox::from_id_salt("core_selector")
                         .selected_text(selected_text)
                         .show_ui(ui, |ui| {
-                            for (idx, (hash, li)) in installed_cores.iter().enumerate() {
-                                let label = format!("{} {}", li.item.name, li.item.version);
-                                let hash_short = {
-                                    let s = hash.to_string();
-                                    if s.len() > 12 { format!("{}...", &s[..12]) } else { s }
-                                };
-                                let display = format!("{label}  ({hash_short})");
-                                ui.selectable_value(&mut form.selected_core_idx, Some(idx), display);
+                            for (idx, (_, li)) in installed_cores.iter().enumerate() {
+                                let label = li.item.version.to_string();
+                                ui.selectable_value(&mut form.selected_core_idx, Some(idx), label);
                             }
                         });
                 });
