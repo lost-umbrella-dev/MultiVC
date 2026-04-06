@@ -1,0 +1,15 @@
+[
+  { "label": "build: workspace", "command": "cargo build --workspace" },
+  { "label": "build: gui", "command": "cargo build -p gui" },
+  { "label": "build: gui-ui", "command": "cargo build -p gui-ui" },
+  { "label": "build: composer", "command": "cargo build -p composer" },
+  { "label": "build: cli", "command": "cargo build -p cli" },
+  { "label": "build: release", "command": "cargo build --release" },
+  { "label": "lint: clippy", "command": "cargo clippy --workspace --all-features --all-targets --locked -- -D warnings" },
+  { "label": "lint: fmt check", "command": "cargo fmt --all -- --check" },
+  { "label": "fmt", "command": "cargo fmt --all" },
+  { "label": "test", "command": "cargo test --workspace --all-features --all-targets --locked" },
+  { "label": "run: gui", "command": "cargo run -p gui" },
+  { "label": "run: cli help", "command": "cargo run -p cli -- --help" },
+  { "label": "hot-reload: watch gui-ui", "command": "cargo watch -w crates/gui-ui -x 'build -p gui-ui'" }
+]

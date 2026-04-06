@@ -5,14 +5,6 @@
 //! [`ComposerWorker`] в фоновом потоке и открывает окно eframe/egui.
 
 mod app;
-mod download_tracker;
-mod icons;
-mod lang;
-mod settings;
-mod state;
-mod toasts;
-mod views;
-mod widgets;
 
 use app::App;
 use clients::{Clients, github::GithubClient};
@@ -26,7 +18,7 @@ fn loum_icon() -> Option<eframe::egui::IconData> {
     const ICON_SIZE: u32 = 64;
 
     let opt = resvg::usvg::Options::default();
-    let tree = resvg::usvg::Tree::from_data(icons::LOUM.as_bytes(), &opt).ok()?;
+    let tree = resvg::usvg::Tree::from_data(gui_ui::icons::LOUM.as_bytes(), &opt).ok()?;
 
     let mut pixmap = resvg::tiny_skia::Pixmap::new(ICON_SIZE, ICON_SIZE)?;
     let svg_size = tree.size();

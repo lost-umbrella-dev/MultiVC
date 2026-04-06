@@ -444,7 +444,7 @@ pub fn render(
                         ui,
                         &item.name,
                         &item.version,
-                        &crate::app::format_size(item.size),
+                        &crate::format_size(item.size),
                         is_downloading,
                         if is_downloading {
                             state.downloads.fraction(item)

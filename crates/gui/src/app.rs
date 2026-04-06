@@ -1,8 +1,10 @@
 //! Главный модуль GUI-приложения на egui.
 //!
 //! [`App`] — минимальный оркестратор: маршрутизирует [`Event`]-ы от worker'а
-//! в [`UiState`], делегирует отрисовку модулям [`views`], а нотификации
-//! показывает через [`egui_toast`].
+//! в [`UiState`], делегирует отрисовку [`gui_ui::render_ui`].
+//!
+//! В debug-сборке загружает `gui_ui.dll` динамически для hot-reload.
+//! В release — вызывает `gui_ui::render_ui` статически.
 
 use eframe::egui;
 use egui_toast::Toasts;
@@ -11,49 +13,110 @@ use composer::error::ComposerError;
 use composer::message::{Command, CoresInstalledResult, Event};
 use composer::worker::WorkerHandle;
 
-use crate::state::{InstanceForm, UiState};
-use crate::toasts;
-use crate::views;
+use gui_ui::Tab;
+use gui_ui::state::UiState;
+use gui_ui::toasts;
 
-// ── Навигация ────────────────────────────────────────────────────────
+// ── Hot-reload support (debug only) ─────────────────────────────────
 
-/// Вкладки левой панели навигации.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Tab {
-    #[default]
-    Cores,
-    Instances,
+/// Dynamically loaded render function (debug builds).
+#[cfg(debug_assertions)]
+struct HotLib {
+    _lib: libloading::Library,
+    render_fn: libloading::Symbol<'static, unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>,
+    loaded_modified: Option<std::time::SystemTime>,
+}
+
+#[cfg(debug_assertions)]
+impl HotLib {
+    fn dll_path() -> std::path::PathBuf {
+        // cargo puts cdylib at target/debug/gui_ui.dll (Windows)
+        let mut path = std::env::current_exe().unwrap();
+        path.pop(); // remove exe name
+        // Go up from target/debug/gui.exe to target/debug/
+        #[cfg(target_os = "windows")]
+        path.push("gui_ui.dll");
+        #[cfg(target_os = "linux")]
+        path.push("libgui_ui.so");
+        #[cfg(target_os = "macos")]
+        path.push("libgui_ui.dylib");
+        path
+    }
+
+    fn load() -> Option<Self> {
+        let dll_path = Self::dll_path();
+        if !dll_path.exists() {
+            tracing::warn!("Hot-reload DLL not found at {}, using static link", dll_path.display());
+            return None;
+        }
+
+        // Copy DLL to a temp file to avoid lock issues on Windows
+        let tmp_path = dll_path.with_extension("hot.dll");
+        if let Err(e) = std::fs::copy(&dll_path, &tmp_path) {
+            tracing::warn!("Failed to copy DLL for hot-reload: {e}");
+            return None;
+        }
+
+        let modified = std::fs::metadata(&dll_path).ok().and_then(|m| m.modified().ok());
+
+        unsafe {
+            match libloading::Library::new(&tmp_path) {
+                Ok(lib) => {
+                    // SAFETY: render_ui has the same ABI because it's compiled with the same rustc
+                    // in the same workspace. We transmute the lifetime to 'static because the
+                    // library lives as long as this struct.
+                    let render_fn: libloading::Symbol<unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)> =
+                        match lib.get::<unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>(b"render_ui") {
+                            Ok(sym) => std::mem::transmute(sym),
+                            Err(e) => {
+                                tracing::error!("Failed to find render_ui in DLL: {e}");
+                                return None;
+                            },
+                        };
+                    tracing::info!("Hot-reload: loaded {}", dll_path.display());
+                    Some(Self {
+                        _lib: lib,
+                        render_fn,
+                        loaded_modified: modified,
+                    })
+                },
+                Err(e) => {
+                    tracing::error!("Failed to load DLL: {e}");
+                    None
+                },
+            }
+        }
+    }
+
+    fn needs_reload(&self) -> bool {
+        let dll_path = Self::dll_path();
+        let current_modified = std::fs::metadata(&dll_path).ok().and_then(|m| m.modified().ok());
+        match (self.loaded_modified, current_modified) {
+            (Some(old), Some(new)) => new > old,
+            _ => false,
+        }
+    }
 }
 
 // ── App ──────────────────────────────────────────────────────────────
 
 /// Главная структура GUI-приложения.
-///
-/// Хранит [`WorkerHandle`] для отправки команд / получения событий,
-/// tokio runtime (для возможных ad-hoc async вызовов) и всё UI-состояние.
 pub struct App {
-    /// Хэндл к фоновому [`ComposerWorker`](composer::worker::ComposerWorker).
     pub handle: WorkerHandle,
 
-    /// Tokio runtime — нужен для `block_on` при инициализации
-    /// и как владелец spawned worker task.
     #[allow(dead_code)]
     runtime: tokio::runtime::Runtime,
 
-    /// Текущая вкладка навигации.
     pub current_tab: Tab,
-
-    /// Кэшированное UI-состояние.
     pub state: UiState,
+
+    /// Hot-reload library (debug builds only).
+    #[cfg(debug_assertions)]
+    hot_lib: Option<HotLib>,
 }
 
 impl App {
-    /// Создаёт новое GUI-приложение.
-    ///
-    /// `handle` — канал к фоновому worker'у.
-    /// `runtime` — tokio runtime, в котором крутится worker.
     pub fn new(handle: WorkerHandle, runtime: tokio::runtime::Runtime) -> Self {
-        // Запрашиваем начальный снимок данных из lock-файлов
         handle.try_send(Command::GetCoresItems);
         handle.try_send(Command::GetInstancesItems);
 
@@ -62,15 +125,11 @@ impl App {
             runtime,
             current_tab: Tab::default(),
             state: UiState::default(),
+            #[cfg(debug_assertions)]
+            hot_lib: HotLib::load(),
         }
     }
 
-    // ── Event handling ───────────────────────────────────────────
-
-    /// Обрабатывает все накопившиеся [`Event`]-ы от worker'а.
-    ///
-    /// Вызывается в начале каждого кадра `update()`.
-    /// Возвращает toast-уведомления для отображения.
     fn drain_and_apply_events(&mut self, toasts: &mut Toasts) {
         let events = self.handle.drain_events();
         for event in events {
@@ -78,10 +137,8 @@ impl App {
         }
     }
 
-    /// Применяет один [`Event`] к UI-состоянию и генерирует toast.
     fn apply_event(&mut self, event: Event, toasts: &mut Toasts) {
         match event {
-            // ── Persistence ──────────────────────────────────────
             Event::Saved(Ok(())) => {
                 self.state.cores.busy = false;
                 self.state.instances.busy = false;
@@ -111,9 +168,7 @@ impl App {
                 toasts::error(toasts, format!("Instances save error: {e}"));
             },
 
-            // ── Install ──────────────────────────────────────────
             Event::CoresInstalled(CoresInstalledResult { successful, failed }) => {
-                // Remove only bridges for items now in installed list (not all — other downloads may be queued)
                 let installed_keys: Vec<String> = self
                     .state
                     .cores
@@ -137,7 +192,6 @@ impl App {
                 }
             },
 
-            // ── Validation ───────────────────────────────────────
             Event::CoresValidated(Ok(reasons)) => {
                 self.state.cores.busy = false;
                 if reasons.is_empty() {
@@ -166,7 +220,6 @@ impl App {
                 toasts::error(toasts, format!("Instances validation error: {e}"));
             },
 
-            // ── Remove core ─────────────────────────────────────
             Event::CoreRemoved { hash, item } => {
                 if let Some(lock_item) = &item {
                     self.state.cores.installed.retain(|(h, _)| h != &hash);
@@ -179,7 +232,6 @@ impl App {
                 }
             },
 
-            // ── Remove instance ──────────────────────────────────
             Event::InstanceRemoved { name, item } => {
                 self.state.instances.busy_instances.remove(&name);
                 if item.is_some() {
@@ -190,7 +242,6 @@ impl App {
                 }
             },
 
-            // ── Create instance ──────────────────────────────────
             Event::InstanceCreated(Ok(name)) => {
                 toasts::success(toasts, format!("Instance created: {name}"));
             },
@@ -198,7 +249,6 @@ impl App {
                 toasts::error(toasts, format!("Instance creation error: {e}"));
             },
 
-            // ── Instance info ────────────────────────────────────
             Event::InstanceInfo(Ok(instance)) => {
                 self.state.instances.viewing = Some(instance);
             },
@@ -206,7 +256,6 @@ impl App {
                 toasts::error(toasts, format!("Instance info error: {e}"));
             },
 
-            // ── Edit instance ────────────────────────────────────
             Event::InstanceEdited(Ok(name)) => {
                 toasts::success(toasts, format!("Instance updated: {name}"));
             },
@@ -214,10 +263,8 @@ impl App {
                 toasts::error(toasts, format!("Instance update error: {e}"));
             },
 
-            // ── Launch instance ──────────────────────────────────
             Event::InstanceLaunched { name, result: Ok(pid) } => {
                 self.state.instances.running_instances.insert(name.clone(), pid);
-                // Update last_launch in local cache so the UI shows it immediately
                 if let Some((_n, meta)) = self.state.instances.installed.iter_mut().find(|(n, _)| n == &name) {
                     meta.last_launch = Some(chrono::Utc::now());
                 }
@@ -227,7 +274,6 @@ impl App {
                 toasts::error(toasts, format!("Launch failed ({name}): {e}"));
             },
 
-            // ── Instance stopped ─────────────────────────────────
             Event::InstanceStopped { name, status } => {
                 self.state.instances.running_instances.remove(&name);
                 match status {
@@ -237,7 +283,6 @@ impl App {
                 }
             },
 
-            // ── Fetch ────────────────────────────────────────────
             Event::CoresFetched(Ok(items)) => {
                 self.state.cores.busy = false;
                 toasts::info(toasts, format!("Available versions: {}", items.len()));
@@ -258,7 +303,6 @@ impl App {
                 toasts::error(toasts, format!("Fetch version error: {e}"));
             },
 
-            // ── Items snapshot ────────────────────────────────────
             Event::CoresItems(items) => {
                 self.state.cores.installed = items;
             },
@@ -267,7 +311,6 @@ impl App {
                 self.state.instances.installed = items;
             },
 
-            // ── Dir size ────────────────────────────────────────────
             Event::InstanceDirSize { name, bytes } => {
                 if let Some(ref mut panel) = self.state.instances.instance_panel
                     && panel.name == name
@@ -276,7 +319,6 @@ impl App {
                 }
             },
 
-            // ── Errors / Lifecycle ───────────────────────────────
             Event::Error(ref e) => match e {
                 ComposerError::CoreInUse { hash: _, dependents } => {
                     let names = dependents.join(", ");
@@ -291,24 +333,35 @@ impl App {
             },
         }
     }
+
+    /// Calls render_ui — dynamically via DLL in debug, statically in release.
+    fn call_render_ui(&mut self, ui: &mut egui::Ui) {
+        let mut args = gui_ui::RenderArgs {
+            current_tab: &mut self.current_tab,
+            state: &mut self.state,
+            handle: &self.handle,
+        };
+
+        #[cfg(debug_assertions)]
+        {
+            if let Some(ref hot) = self.hot_lib {
+                unsafe { (hot.render_fn)(ui, &mut args) };
+                return;
+            }
+        }
+
+        // Fallback: static call (always used in release)
+        gui_ui::render_ui(ui, &mut args);
+    }
 }
 
 // ── eframe::App ──────────────────────────────────────────────────────
 
 impl eframe::App for App {
-    /// Обработка событий без UI — вызывается перед `ui()`,
-    /// а также когда окно свёрнуто, но был `request_repaint`.
-    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Drain events here so state is fresh before ui() draws.
-        // We can't emit toasts here (no Ui), so we buffer nothing —
-        // toasts are emitted inside ui() from the same drain call.
-    }
+    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {}
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // Debug hotkeys (debug builds only):
-        //   F12 — debug_on_hover (highlight widget under cursor)
-        //   F11 — show_widget_hits (color widgets on hover/click)
-        //   F10 — egui Inspection Window (styles, fonts, textures)
+        // Debug hotkeys + hot-reload check
         #[cfg(debug_assertions)]
         {
             let ctx = ui.ctx();
@@ -317,10 +370,9 @@ impl eframe::App for App {
                 ctx.set_debug_on_hover(!v);
             }
             if ctx.input(|i| i.key_pressed(egui::Key::F11)) {
-                ctx.style_mut(|s| s.debug.show_widget_hits = !s.debug.show_widget_hits);
+                ctx.global_style_mut(|s| s.debug.show_widget_hits = !s.debug.show_widget_hits);
             }
             if ctx.input(|i| i.key_pressed(egui::Key::F10)) {
-                // Store toggle in egui memory
                 let id = egui::Id::new("__debug_inspection");
                 let open = ctx.data_mut(|d| {
                     let v = d.get_temp::<bool>(id).unwrap_or(false);
@@ -328,7 +380,7 @@ impl eframe::App for App {
                     !v
                 });
                 if open {
-                    ctx.set_debug_on_hover(false); // avoid conflict
+                    ctx.set_debug_on_hover(false);
                 }
             }
             {
@@ -344,93 +396,28 @@ impl eframe::App for App {
                     }
                 }
             }
+
+            // Check for DLL changes every frame (cheap: just stat the file)
+            if let Some(ref hot) = self.hot_lib {
+                if hot.needs_reload() {
+                    tracing::info!("Hot-reload: DLL changed, reloading...");
+                    self.hot_lib = None; // drop old library first
+                    self.hot_lib = HotLib::load();
+                }
+            }
         }
 
-        // Toast container — recreated each frame (stores state in egui memory)
-        let mut toasts = toasts::create_toasts();
+        // Drain events
+        let mut toasts_instance = gui_ui::toasts::create_toasts();
+        self.drain_and_apply_events(&mut toasts_instance);
 
-        // 1. Drain events from worker
-        self.drain_and_apply_events(&mut toasts);
-
-        let ctx = ui.ctx().clone();
-
-        // 2. Bottom panel — navigation bar
-        egui::Panel::bottom("nav_panel")
-            .resizable(false)
-            .default_size(30.0)
-            .show_inside(ui, |ui| {
-                views::sidebar::render(
-                    ui,
-                    &mut self.current_tab,
-                    &self.state.cores.downloads,
-                    &mut self.state.settings,
-                );
-            });
-
-        // 3. Central panel — active tab
-        egui::CentralPanel::default().show_inside(ui, |ui| match self.current_tab {
-            Tab::Cores => {
-                let lang = self.state.settings.lock.language;
-                let action = views::cores_tab::render(ui, &ctx, &mut self.state.cores, &self.handle, &mut toasts, lang);
-
-                // Handle cross-tab action: "+" button → switch to Instances with pre-selected core
-                if let Some(core_idx) = action.switch_to_instances_with_core {
-                    self.current_tab = Tab::Instances;
-                    self.state.instances.create_form = Some(InstanceForm {
-                        selected_core_idx: Some(core_idx),
-                        ..Default::default()
-                    });
-                }
-            },
-            Tab::Instances => {
-                let lang = self.state.settings.lock.language;
-                views::instances_tab::render(
-                    ui,
-                    &mut self.state.instances,
-                    &self.handle,
-                    &self.state.cores.installed,
-                    &mut toasts,
-                    lang,
-                );
-            },
-        });
-
-        // 4. Render settings modal
-        views::settings_modal::render(
-            ui,
-            &mut self.state.settings,
-            self.state.cores.installed.len(),
-            self.state.instances.installed.len(),
-            &mut toasts,
-        );
-
-        // 5. Draw toasts (must be last — renders overlay)
-        toasts.show(ui);
+        // Render UI (hot or static)
+        self.call_render_ui(ui);
     }
 
-    /// При закрытии окна — отправляем Shutdown worker'у.
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         tracing::info!("sending Shutdown to worker");
         self.handle.try_send(Command::Shutdown);
         let _ = self.state.settings.lock.save();
-    }
-}
-
-// ── Утилиты ──────────────────────────────────────────────────────────
-
-/// Форматирует размер в байтах в человекочитаемый вид.
-pub fn format_size(bytes: u64) -> String {
-    const KIB: u64 = 1024;
-    const MIB: u64 = KIB * 1024;
-    const GIB: u64 = MIB * 1024;
-
-    if bytes >= GIB {
-        format!("{:.1} GiB", bytes as f64 / GIB as f64)
-    } else if bytes >= MIB {
-        format!("{:.1} MiB", bytes as f64 / MIB as f64)
-    } else if bytes >= KIB {
-        format!("{:.1} KiB", bytes as f64 / KIB as f64)
-    } else {
-        format!("{bytes} B")
     }
 }

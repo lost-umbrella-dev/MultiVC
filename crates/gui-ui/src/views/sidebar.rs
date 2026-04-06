@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::app::Tab;
+use crate::Tab;
 use crate::download_tracker::DownloadTracker;
 use crate::icons;
 use crate::lang;

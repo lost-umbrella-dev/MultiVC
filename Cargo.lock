@@ -1604,6 +1604,25 @@ dependencies = [
 name = "gui"
 version = "0.0.0"
 dependencies = [
+ "chrono",
+ "clients",
+ "composer",
+ "eframe",
+ "egui-toast",
+ "egui_extras",
+ "gui-ui",
+ "libloading",
+ "resvg",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-tree",
+]
+
+[[package]]
+name = "gui-ui"
+version = "0.0.0"
+dependencies = [
  "base64",
  "chrono",
  "clients",
@@ -1616,11 +1635,8 @@ dependencies = [
  "resvg",
  "rfd",
  "serde",
- "tokio",
  "toml 0.8.23",
  "tracing",
- "tracing-subscriber",
- "tracing-tree",
 ]
 
 [[package]]

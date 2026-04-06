@@ -118,7 +118,7 @@ pub(super) fn render(
         ui.strong(format!("{}:", lang::t("info.disk_size", lang)));
         let panel = state.instance_panel.as_ref().unwrap();
         match panel.dir_size {
-            Some(bytes) => ui.label(crate::app::format_size(bytes)),
+            Some(bytes) => ui.label(crate::format_size(bytes)),
             None => {
                 ui.label(lang::t("info.calculating", lang));
                 // Request dir size calculation
