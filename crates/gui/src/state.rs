@@ -72,6 +72,10 @@ pub struct InstancesTabState {
     pub confirm_remove: Option<String>,
     /// Идёт ли глобальная операция (валидация, сохранение).
     pub busy: bool,
+    /// Запущенные инстансы: имя → PID.
+    pub running_instances: HashMap<String, u32>,
+    /// Имя инстанса, чей лог сейчас открыт в модалке.
+    pub log_viewer: Option<String>,
 }
 
 /// Поля формы создания / редактирования инстанса.

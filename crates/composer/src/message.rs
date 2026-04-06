@@ -88,6 +88,12 @@ pub enum Command {
     /// Получить конкретную версию ядра.
     FetchCore { version: Version },
 
+    /// Запустить инстанс как дочерний процесс.
+    LaunchInstance { name: String },
+
+    /// Остановить запущенный инстанс (kill процесс).
+    StopInstance { name: String },
+
     /// Завершить background-поток.
     Shutdown,
 }
@@ -151,6 +157,19 @@ pub enum Event {
 
     /// Текущий список установленных инстансов.
     InstancesItems(InstancesSnapshot),
+
+    /// Инстанс запущен.
+    InstanceLaunched {
+        name: String,
+        result: Result<u32, ComposerError>,
+    },
+
+    /// Инстанс (дочерний процесс) завершился.
+    InstanceStopped {
+        name: String,
+        /// Exit code, or `None` if killed / unknown.
+        status: Option<i32>,
+    },
 
     /// Произошла фатальная ошибка.
     Error(ComposerError),

@@ -18,8 +18,10 @@ use crate::toasts;
 #[derive(Default)]
 struct InstanceRowActions {
     launch: bool,
+    stop: bool,
     open_folder: bool,
     delete: bool,
+    view_log: bool,
 }
 
 fn instance_row(
@@ -27,6 +29,7 @@ fn instance_row(
     name: &str,
     _meta: &InstancesItem,
     is_busy: bool,
+    is_running: bool,
     striped_bg: bool,
 ) -> InstanceRowActions {
     let mut actions = InstanceRowActions::default();
@@ -47,22 +50,40 @@ fn instance_row(
 
             // Actions — right side
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                // Delete (right-most)
+                // Delete (right-most) — disabled when running
                 if ui
-                    .add_enabled(!is_busy, egui::Button::new("\u{1F5D1}").small())
-                    .on_hover_text("Delete")
+                    .add_enabled(!is_busy && !is_running, egui::Button::new("\u{1F5D1}").small())
+                    .on_hover_text(if is_running { "Stop instance first" } else { "Delete" })
                     .clicked()
                 {
                     actions.delete = true;
                 }
 
                 // Open folder
-                if ui.button("\u{1F4C2}").on_hover_text("Open folder").clicked() {
+                if ui
+                    .add(egui::Button::new("\u{1F4C2}").small())
+                    .on_hover_text("Open folder")
+                    .clicked()
+                {
                     actions.open_folder = true;
                 }
 
-                // Launch
-                if ui
+                // View log
+                if ui.button("\u{1F4C4}").on_hover_text("View log").clicked() {
+                    actions.view_log = true;
+                }
+
+                // Launch / Stop
+                if is_running {
+                    if ui
+                        .button(egui::RichText::new("\u{23F9}").color(egui::Color32::RED))
+                        .on_hover_text("Stop")
+                        .clicked()
+                    {
+                        actions.stop = true;
+                    }
+                    ui.colored_label(egui::Color32::GREEN, "Running");
+                } else if ui
                     .add_enabled(!is_busy, egui::Button::new("\u{25B6}").small())
                     .on_hover_text("Launch")
                     .clicked()
@@ -251,12 +272,16 @@ pub fn render(
 
                 for (idx, (name, meta)) in state.installed.iter().enumerate() {
                     let is_busy = state.busy || state.busy_instances.contains(name);
+                    let is_running = state.running_instances.contains_key(name);
 
-                    let row_actions = instance_row(ui, name, meta, is_busy, idx % 2 == 1);
+                    let row_actions = instance_row(ui, name, meta, is_busy, is_running, idx % 2 == 1);
 
                     if row_actions.launch {
-                        // TODO: send LaunchInstance command when added to protocol
-                        toasts::warning(toasts_out, format!("Launch not yet implemented: {name}"));
+                        handle.try_send(Command::LaunchInstance { name: name.clone() });
+                    }
+
+                    if row_actions.stop {
+                        handle.try_send(Command::StopInstance { name: name.clone() });
                     }
 
                     if row_actions.open_folder {
@@ -272,6 +297,10 @@ pub fn render(
 
                     if row_actions.delete {
                         to_remove = Some(name.clone());
+                    }
+
+                    if row_actions.view_log {
+                        state.log_viewer = Some(name.clone());
                     }
                 }
 
@@ -305,6 +334,83 @@ pub fn render(
             });
         if !open {
             state.confirm_remove = None;
+        }
+    }
+
+    // ── Log viewer modal ─────────────────────────────────────────
+    if let Some(ref instance_name) = state.log_viewer.clone() {
+        let mut open = true;
+        let log_path = std::path::Path::new("instances")
+            .join(&instance_name)
+            .join("latest.log");
+
+        let is_instance_running = state.running_instances.contains_key(instance_name);
+
+        egui::Window::new(format!("Log: {}", instance_name))
+            .collapsible(true)
+            .resizable(true)
+            .default_size([700.0, 450.0])
+            .default_pos([100.0, 100.0])
+            .open(&mut open)
+            .show(ui.ctx(), |ui| {
+                ui.horizontal(|ui| {
+                    if is_instance_running {
+                        ui.spinner();
+                        ui.colored_label(egui::Color32::GREEN, "Running");
+                        ui.separator();
+                    }
+
+                    // Open file — disabled when running (file may be locked)
+                    if ui
+                        .add_enabled(!is_instance_running, egui::Button::new("\u{1F4C2} Open file"))
+                        .on_hover_text(if is_instance_running {
+                            "Stop instance first"
+                        } else {
+                            "Open in external editor"
+                        })
+                        .clicked()
+                    {
+                        if log_path.exists() {
+                            if let Err(e) = open::that(&log_path) {
+                                toasts::error(toasts_out, format!("Failed to open log: {e}"));
+                            }
+                        }
+                    }
+                });
+
+                ui.separator();
+
+                let log_content = if log_path.exists() {
+                    std::fs::read_to_string(&log_path).unwrap_or_else(|e| format!("Error reading log: {e}"))
+                } else {
+                    "No log file found. Launch the instance first.".to_owned()
+                };
+
+                egui::ScrollArea::both()
+                    .id_salt("log_viewer_scroll")
+                    .auto_shrink(false)
+                    .stick_to_bottom(true)
+                    .show(ui, |ui| {
+                        for line in log_content.lines() {
+                            let color = if line.starts_with("[E]") {
+                                egui::Color32::RED
+                            } else if line.starts_with("[W]") {
+                                egui::Color32::YELLOW
+                            } else {
+                                ui.visuals().text_color()
+                            };
+                            ui.label(egui::RichText::new(line).monospace().color(color));
+                        }
+                    });
+            });
+
+        // Auto-refresh: repaint every 500ms while instance is running
+        if is_instance_running {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+        }
+
+        if !open {
+            state.log_viewer = None;
         }
     }
 }

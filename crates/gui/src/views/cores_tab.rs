@@ -129,7 +129,7 @@ fn available_core_row(
             } else if is_installed {
                 ui.add_sized(
                     [status_width, ui.available_height()],
-                    egui::Label::new(egui::RichText::new("v").color(egui::Color32::GREEN).strong()),
+                    egui::Label::new(egui::RichText::new("\u{2714}").color(egui::Color32::GREEN).strong()),
                 )
                 .on_hover_text("Installed");
             } else {

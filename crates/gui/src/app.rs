@@ -214,6 +214,25 @@ impl App {
                 toasts::error(toasts, format!("Instance update error: {e}"));
             },
 
+            // ── Launch instance ──────────────────────────────────
+            Event::InstanceLaunched { name, result: Ok(pid) } => {
+                self.state.instances.running_instances.insert(name.clone(), pid);
+                toasts::success(toasts, format!("Launched: {name} (PID {pid})"));
+            },
+            Event::InstanceLaunched { name, result: Err(e) } => {
+                toasts::error(toasts, format!("Launch failed ({name}): {e}"));
+            },
+
+            // ── Instance stopped ─────────────────────────────────
+            Event::InstanceStopped { name, status } => {
+                self.state.instances.running_instances.remove(&name);
+                match status {
+                    Some(0) => toasts::info(toasts, format!("Instance stopped: {name}")),
+                    Some(code) => toasts::warning(toasts, format!("Instance stopped: {name} (exit code {code})")),
+                    None => toasts::warning(toasts, format!("Instance stopped: {name} (killed)")),
+                }
+            },
+
             // ── Fetch ────────────────────────────────────────────
             Event::CoresFetched(Ok(items)) => {
                 self.state.cores.busy = false;

@@ -60,6 +60,8 @@ pub struct ComposerWorker {
     composer: Composer,
     commands: mpsc::Receiver<Command>,
     events: mpsc::Sender<Event>,
+    /// Запущенные процессы инстансов: имя → Child handle (для kill).
+    running: std::collections::HashMap<String, tokio::process::Child>,
 }
 
 impl ComposerWorker {
@@ -77,6 +79,7 @@ impl ComposerWorker {
             composer,
             commands: cmd_rx,
             events: evt_tx,
+            running: std::collections::HashMap::new(),
         };
 
         let handle = WorkerHandle {
@@ -106,7 +109,32 @@ impl ComposerWorker {
     pub async fn run(mut self) {
         tracing::info!("composer worker started");
 
-        while let Some(cmd) = self.commands.recv().await {
+        loop {
+            // If we have running processes, use a short timeout to poll them.
+            // Otherwise, just wait for the next command.
+            let cmd = if self.running.is_empty() {
+                match self.commands.recv().await {
+                    Some(cmd) => cmd,
+                    None => break, // channel closed
+                }
+            } else {
+                tokio::select! {
+                    cmd = self.commands.recv() => {
+                        match cmd {
+                            Some(cmd) => cmd,
+                            None => break,
+                        }
+                    }
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => {
+                        self.poll_running_instances().await;
+                        continue;
+                    }
+                }
+            };
+
+            // Also poll before handling each command
+            self.poll_running_instances().await;
+
             let is_shutdown = matches!(cmd, Command::Shutdown);
 
             let event = self.handle(cmd).await;
@@ -142,6 +170,28 @@ impl ComposerWorker {
             .iter()
             .map(|entry| (entry.key().clone(), entry.value().clone()))
             .collect()
+    }
+
+    /// Checks all running instances and sends `InstanceStopped` for any that have exited.
+    async fn poll_running_instances(&mut self) {
+        let mut stopped = Vec::new();
+        for (name, child) in &mut self.running {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    tracing::info!(instance = %name, ?status, "instance process exited");
+                    stopped.push((name.clone(), status.code()));
+                },
+                Ok(None) => {}, // still running
+                Err(e) => {
+                    tracing::error!(instance = %name, error = %e, "failed to poll instance process");
+                    stopped.push((name.clone(), None));
+                },
+            }
+        }
+        for (name, status) in stopped {
+            self.running.remove(&name);
+            self.send(Event::InstanceStopped { name, status }).await;
+        }
     }
 
     /// Отправляет событие в UI, игнорируя ошибку закрытого канала.
@@ -295,6 +345,56 @@ impl ComposerWorker {
             Command::GetCoresItems => Event::CoresItems(self.cores_snapshot()),
 
             Command::GetInstancesItems => Event::InstancesItems(self.instances_snapshot()),
+
+            // ── Launch ───────────────────────────────────────────
+            Command::LaunchInstance { name } => {
+                // Use launch_instance_cmd() + Stdio::null() to suppress console output
+                match self.composer.launch_instance_cmd(&name).await {
+                    Ok(mut cmd) => {
+                        use std::process::Stdio;
+                        cmd.stdout(Stdio::null());
+                        cmd.stderr(Stdio::null());
+                        cmd.stdin(Stdio::null());
+
+                        match cmd.spawn() {
+                            Ok(child) => {
+                                let pid = child.id().unwrap_or(0);
+                                tracing::info!(instance = %name, pid, "instance process spawned (stdio suppressed)");
+
+                                // Store child for potential kill later
+                                self.running.insert(name.clone(), child);
+
+                                Event::InstanceLaunched { name, result: Ok(pid) }
+                            },
+                            Err(e) => {
+                                let err = crate::error::ComposerError::Io(e);
+                                Event::InstanceLaunched { name, result: Err(err) }
+                            },
+                        }
+                    },
+                    Err(e) => Event::InstanceLaunched { name, result: Err(e) },
+                }
+            },
+
+            Command::StopInstance { name } => {
+                if let Some(mut child) = self.running.remove(&name) {
+                    match child.kill().await {
+                        Ok(()) => {
+                            tracing::info!(instance = %name, "instance process killed");
+                            let status = child.wait().await.ok().and_then(|s| s.code());
+                            Event::InstanceStopped { name, status }
+                        },
+                        Err(e) => {
+                            tracing::error!(instance = %name, error = %e, "failed to kill instance");
+                            Event::Error(crate::error::ComposerError::Io(e))
+                        },
+                    }
+                } else {
+                    tracing::warn!(instance = %name, "no running process found for instance");
+                    // Instance already stopped or was never launched via worker
+                    Event::InstanceStopped { name, status: None }
+                }
+            },
 
             // ── Lifecycle ────────────────────────────────────────
             Command::Shutdown => Event::ShutdownComplete,
