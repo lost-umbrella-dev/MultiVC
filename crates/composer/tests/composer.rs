@@ -154,6 +154,7 @@ async fn save_instances_only() {
     let item = InstancesItem {
         icon: String::from("test-icon"),
         banner: String::from("test-banner"),
+        last_launch: None,
     };
     composer.instances_items().insert("only_instance".to_owned(), item);
 

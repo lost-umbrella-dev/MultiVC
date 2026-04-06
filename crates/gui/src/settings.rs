@@ -1,18 +1,10 @@
 use serde::{Deserialize, Serialize};
 
 /// Persisted launcher settings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SettingsLock {
     #[serde(default)]
     pub language: crate::lang::Lang,
-}
-
-impl Default for SettingsLock {
-    fn default() -> Self {
-        Self {
-            language: crate::lang::Lang::default(),
-        }
-    }
 }
 
 impl SettingsLock {

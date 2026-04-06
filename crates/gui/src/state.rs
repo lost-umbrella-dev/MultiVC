@@ -120,7 +120,6 @@ pub struct CoresTabState {
 // ── Instances tab ────────────────────────────────────────────────────
 
 /// Состояние вкладки «Инстансы».
-#[derive(Default)]
 pub struct InstancesTabState {
     /// Установленные инстансы (кэш из lock).
     pub installed: Vec<(String, InstancesItem)>,
@@ -149,7 +148,7 @@ pub struct InstancesTabState {
     pub sort_dir: SortDir,
 }
 
-impl InstancesTabState {
+impl Default for InstancesTabState {
     fn default() -> Self {
         Self {
             installed: Vec::new(),

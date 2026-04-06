@@ -12,6 +12,7 @@ use composer::message::Command;
 use composer::worker::WorkerHandle;
 
 use crate::icons;
+use crate::lang::{self, Lang};
 use crate::state::{CoresSortColumn, CoresTabState, SortDir};
 use crate::toasts;
 use crate::widgets::{ProgressRing, confirm_dialog, icon_button, striped_frame, tab_toolbar};
@@ -44,6 +45,7 @@ struct RowActions {
     create_instance: bool,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn installed_core_row(
     ui: &mut egui::Ui,
     name: &str,
@@ -52,6 +54,7 @@ fn installed_core_row(
     hash_full: &str,
     dependents: &[String],
     striped_bg: bool,
+    lang: Lang,
 ) -> RowActions {
     let mut actions = RowActions::default();
     let has_dependents = !dependents.is_empty();
@@ -74,7 +77,11 @@ fn installed_core_row(
                 .on_hover_text(hash_full);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.add(icon_button("+")).on_hover_text("Create instance").clicked() {
+                if ui
+                    .add(icon_button("+"))
+                    .on_hover_text(lang::t("tip.create_instance", lang))
+                    .clicked()
+                {
                     actions.create_instance = true;
                 }
 
@@ -84,7 +91,7 @@ fn installed_core_row(
                     ui.add_enabled(false, btn).on_disabled_hover_text(tooltip);
                 } else if ui
                     .add(icon_button(icons::ICON_DELETE))
-                    .on_hover_text("Delete")
+                    .on_hover_text(lang::t("tip.delete", lang))
                     .clicked()
                 {
                     actions.delete = true;
@@ -98,10 +105,6 @@ fn installed_core_row(
 
 #[allow(clippy::too_many_arguments)]
 /// Renders a row in the available versions list.
-///
-/// - Installed items show a checkmark (non-interactive) + optional reinstall.
-/// - Downloading items show a progress ring.
-/// - Selectable items show a checkbox that toggles selection in `pending_installs`.
 fn available_core_row(
     ui: &mut egui::Ui,
     name: &str,
@@ -112,6 +115,7 @@ fn available_core_row(
     is_installed: bool,
     is_selected: bool,
     striped_bg: bool,
+    lang: Lang,
 ) -> AvailableRowAction {
     let mut action = AvailableRowAction::None;
 
@@ -145,7 +149,7 @@ fn available_core_row(
                             .strong(),
                     ),
                 )
-                .on_hover_text("Installed");
+                .on_hover_text(lang::t("tip.installed", lang));
             } else {
                 let mut selected = is_selected;
                 let cb = ui.add_sized(
@@ -182,6 +186,7 @@ pub fn render(
     state: &mut CoresTabState,
     handle: &WorkerHandle,
     toasts_out: &mut Toasts,
+    lang: Lang,
 ) -> CoresTabAction {
     let mut action = CoresTabAction {
         switch_to_instances_with_core: None,
@@ -199,11 +204,11 @@ pub fn render(
     let global_busy = state.busy || state.downloads.has_active();
 
     // ── Toolbar (right-aligned icons) ────────────────────────────
-    tab_toolbar(ui, "Cores", |ui| {
+    tab_toolbar(ui, lang::t("tab.cores", lang), |ui| {
         // Validate
         if ui
             .add_enabled(!global_busy, icon_button(icons::ICON_VALIDATE))
-            .on_hover_text("Validate cores")
+            .on_hover_text(lang::t("tip.validate_cores", lang))
             .clicked()
         {
             state.busy = true;
@@ -213,21 +218,25 @@ pub fn render(
         // Refresh
         if ui
             .add_enabled(!global_busy, icon_button(icons::ICON_REFRESH))
-            .on_hover_text("Fetch from GitHub")
+            .on_hover_text(lang::t("tip.fetch_github", lang))
             .clicked()
         {
             state.busy = true;
             handle.try_send(Command::FetchCoresList {
                 search_version: GitHubListOptions { search_version: vec![] },
             });
-            toasts::info(toasts_out, "Fetching versions...");
+            toasts::info(toasts_out, lang::t("status.fetching", lang));
         }
 
         // Download selected — only shown when there are pending items
         let pending_count = state.pending_installs.len();
         if pending_count > 0 {
-            let label = format!("Download ({})", pending_count);
-            if ui.button(label).on_hover_text("Download all selected cores").clicked() {
+            let label = format!("{} ({})", lang::t("action.download", lang), pending_count);
+            if ui
+                .button(label)
+                .on_hover_text(lang::t("tip.download_selected", lang))
+                .clicked()
+            {
                 let items: Vec<_> = state.pending_installs.drain(..).collect();
                 let requests: Vec<_> = items
                     .into_iter()
@@ -242,8 +251,8 @@ pub fn render(
 
     // ── Delete confirmation modal ────────────────────────────────
     if let Some((ref hash, ref display_name)) = state.confirm_remove.clone() {
-        let msg = format!("Are you sure you want to delete \"{}\"?", display_name);
-        if let Some(confirmed) = confirm_dialog(ui.ctx(), "Delete core?", &msg) {
+        let msg = format!("{} \"{}\"?", lang::t("confirm.delete_core", lang), display_name);
+        if let Some(confirmed) = confirm_dialog(ui.ctx(), lang::t("confirm.delete_core", lang), &msg) {
             if confirmed {
                 handle.try_send(Command::RemoveCore { hash: hash.clone() });
             }
@@ -253,7 +262,11 @@ pub fn render(
 
     // ── Installed cores (max 10 rows, full width) ────────────────
     if !state.installed.is_empty() {
-        ui.label(egui::RichText::new("Installed").strong().size(14.0));
+        ui.label(
+            egui::RichText::new(lang::t("section.installed", lang))
+                .strong()
+                .size(14.0),
+        );
 
         // Header
         ui.horizontal(|ui| {
@@ -268,11 +281,11 @@ pub fn render(
             // Name header
             let is_active_name = state.installed_sort_col == CoresSortColumn::Name;
             let indicator_name = match (is_active_name, state.installed_sort_dir) {
-                (true, SortDir::Ascending) => " ▲",
-                (true, SortDir::Descending) => " ▼",
+                (true, SortDir::Ascending) => " \u{25B2}",
+                (true, SortDir::Descending) => " \u{25BC}",
                 _ => "",
             };
-            let label_name = format!("Name{}", indicator_name);
+            let label_name = format!("{}{}", lang::t("col.name", lang), indicator_name);
 
             if ui
                 .add_sized(
@@ -295,11 +308,11 @@ pub fn render(
             // Version header
             let is_active_version = state.installed_sort_col == CoresSortColumn::Version;
             let indicator_version = match (is_active_version, state.installed_sort_dir) {
-                (true, SortDir::Ascending) => " ▲",
-                (true, SortDir::Descending) => " ▼",
+                (true, SortDir::Ascending) => " \u{25B2}",
+                (true, SortDir::Descending) => " \u{25BC}",
                 _ => "",
             };
-            let label_version = format!("Version{}", indicator_version);
+            let label_version = format!("{}{}", lang::t("col.version", lang), indicator_version);
 
             if ui
                 .add_sized(
@@ -322,11 +335,11 @@ pub fn render(
             // Hash header (not sortable)
             ui.add_sized(
                 [hash_width, row_height],
-                egui::Label::new(egui::RichText::new("Hash").strong()),
+                egui::Label::new(egui::RichText::new(lang::t("col.hash", lang)).strong()),
             );
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(egui::RichText::new("Actions").strong());
+                ui.label(egui::RichText::new(lang::t("col.actions", lang)).strong());
             });
         });
 
@@ -354,7 +367,7 @@ pub fn render(
             (CoresSortColumn::Name, SortDir::Descending) => {
                 sorted_indices.sort_by(|&a, &b| state.installed[b].1.item.name.cmp(&state.installed[a].1.item.name));
             },
-            _ => {}, // No sort: use insertion order
+            _ => {},
         }
 
         egui::ScrollArea::vertical()
@@ -384,6 +397,7 @@ pub fn render(
                         &hash_str,
                         dependents,
                         row_idx % 2 == 1,
+                        lang,
                     );
 
                     if row_actions.delete && !global_busy {
@@ -404,19 +418,35 @@ pub fn render(
     // ── Validation results ───────────────────────────────────────
     if !state.validation.is_empty() {
         ui.separator();
-        ui.label(egui::RichText::new("Validation results").strong().size(14.0));
+        ui.label(
+            egui::RichText::new(lang::t("section.validation", lang))
+                .strong()
+                .size(14.0),
+        );
         for reason in &state.validation {
             match reason {
                 ValidateReason::HashNotMatcher(hash, item) => {
                     ui.colored_label(
                         egui::Color32::YELLOW,
-                        format!("Hash mismatch: {} v{} ({})", item.item.name, item.item.version, hash),
+                        format!(
+                            "{}: {} v{} ({})",
+                            lang::t("validation.hash_mismatch", lang),
+                            item.item.name,
+                            item.item.version,
+                            hash
+                        ),
                     );
                 },
                 ValidateReason::NotFound(hash, item) => {
                     ui.colored_label(
                         egui::Color32::RED,
-                        format!("Not found: {} v{} ({})", item.item.name, item.item.version, hash),
+                        format!(
+                            "{}: {} v{} ({})",
+                            lang::t("validation.not_found", lang),
+                            item.item.name,
+                            item.item.version,
+                            hash
+                        ),
                     );
                 },
             }
@@ -427,7 +457,11 @@ pub fn render(
     if !state.available.is_empty() {
         ui.separator();
 
-        ui.label(egui::RichText::new("Available versions").strong().size(14.0));
+        ui.label(
+            egui::RichText::new(lang::t("section.available", lang))
+                .strong()
+                .size(14.0),
+        );
 
         // Column headers
         ui.horizontal(|ui| {
@@ -442,11 +476,11 @@ pub fn render(
             // Name header
             let is_active_name = state.available_sort_col == CoresSortColumn::Name;
             let indicator_name = match (is_active_name, state.available_sort_dir) {
-                (true, SortDir::Ascending) => " ▲",
-                (true, SortDir::Descending) => " ▼",
+                (true, SortDir::Ascending) => " \u{25B2}",
+                (true, SortDir::Descending) => " \u{25BC}",
                 _ => "",
             };
-            let label_name = format!("Name{}", indicator_name);
+            let label_name = format!("{}{}", lang::t("col.name", lang), indicator_name);
 
             if ui
                 .add_sized(
@@ -469,11 +503,11 @@ pub fn render(
             // Version header
             let is_active_version = state.available_sort_col == CoresSortColumn::Version;
             let indicator_version = match (is_active_version, state.available_sort_dir) {
-                (true, SortDir::Ascending) => " ▲",
-                (true, SortDir::Descending) => " ▼",
+                (true, SortDir::Ascending) => " \u{25B2}",
+                (true, SortDir::Descending) => " \u{25BC}",
                 _ => "",
             };
-            let label_version = format!("Version{}", indicator_version);
+            let label_version = format!("{}{}", lang::t("col.version", lang), indicator_version);
 
             if ui
                 .add_sized(
@@ -496,9 +530,9 @@ pub fn render(
             // Size header (not sortable)
             ui.add_sized(
                 [size_width, row_height],
-                egui::Label::new(egui::RichText::new("Size").strong()),
+                egui::Label::new(egui::RichText::new(lang::t("col.size", lang)).strong()),
             );
-            // Status header (empty — checkboxes/icons are self-explanatory)
+            // Status header (empty)
             ui.add_sized([status_width, row_height], egui::Label::new(""));
         });
 
@@ -515,12 +549,12 @@ pub fn render(
                 sorted_indices.sort_by(|&a, &b| semver_cmp(&state.available[b].version, &state.available[a].version));
             },
             (CoresSortColumn::Name, SortDir::Ascending) => {
-                sorted_indices.sort_by(|&a, &b| state.available[a].name.cmp(&state.available[b].name));
+                sorted_indices.sort_by(|&a, &b| state.available[a].version.cmp(&state.available[b].version));
             },
             (CoresSortColumn::Name, SortDir::Descending) => {
-                sorted_indices.sort_by(|&a, &b| state.available[b].name.cmp(&state.available[a].name));
+                sorted_indices.sort_by(|&a, &b| state.available[b].version.cmp(&state.available[a].version));
             },
-            _ => {}, // No sort: use insertion order
+            _ => {},
         }
 
         egui::ScrollArea::vertical()
@@ -551,6 +585,7 @@ pub fn render(
                         is_installed,
                         is_selected,
                         row_idx % 2 == 1,
+                        lang,
                     );
 
                     match row_action {
@@ -572,7 +607,7 @@ pub fn render(
         ui.separator();
         ui.horizontal(|ui| {
             ui.spinner();
-            ui.label("Loading available versions...");
+            ui.label(lang::t("status.loading", lang));
         });
     }
 

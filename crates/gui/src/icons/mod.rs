@@ -9,7 +9,8 @@ pub const ICON_LOG: &str = "\u{1F4C4}"; // 📄
 pub const ICON_VALIDATE: &str = "\u{2714}"; // ✔
 pub const ICON_REFRESH: &str = "\u{21BB}"; // ↻
 pub const ICON_DOWNLOAD: &str = "\u{2B07}"; // ⬇
+pub const ICON_SETTINGS: &str = "\u{2699}"; // ⚙
 
-pub const TAB_CORES_LABEL: &str = "\u{2699} Cores"; // ⚙ Cores
-pub const TAB_INSTANCES_LABEL: &str = "\u{1F4E6} Instances"; // 📦 Instances
+pub const ICON_TAB_CORES: &str = "\u{2699}"; // ⚙
+pub const ICON_TAB_INSTANCES: &str = "\u{1F4E6}"; // 📦
 pub const LABEL_OPEN_FILE: &str = "\u{1F4C2} Open file"; // 📂 Open file

@@ -84,6 +84,7 @@ pub fn open_folder(path: impl AsRef<std::path::Path>, toasts: &mut egui_toast::T
 /// Renders a clickable folder-open button (icon only).
 /// Calls `open_folder()` on click.
 /// Returns `true` if the button was clicked.
+#[allow(dead_code)]
 pub fn open_folder_button(
     ui: &mut egui::Ui,
     path: impl AsRef<std::path::Path>,

@@ -11,6 +11,7 @@ use composer::message::Command;
 use composer::worker::WorkerHandle;
 
 use crate::icons;
+use crate::lang::{self, Lang};
 use crate::state::{InstanceForm, InstancesSortColumn, InstancesTabState, SortDir};
 use crate::toasts;
 use crate::widgets::{confirm_dialog, form_row, icon_button, open_folder, striped_frame, tab_toolbar};
@@ -33,6 +34,7 @@ fn instance_row(
     is_busy: bool,
     is_running: bool,
     striped_bg: bool,
+    lang: Lang,
 ) -> InstanceRowActions {
     let mut actions = InstanceRowActions::default();
 
@@ -42,16 +44,16 @@ fn instance_row(
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             let last_launch_width = 140.0;
-            let actions_width = 100.0;
+            let actions_width = 160.0;
             let name_width =
-                (ui.available_width() - last_launch_width - actions_width - ui.spacing().item_spacing.x * 2.0)
+                (ui.available_width() - last_launch_width - actions_width - ui.spacing().item_spacing.x * 3.0)
                     .max(80.0);
 
             ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
 
             let last_launch_str = match meta.last_launch {
                 Some(dt) => dt.format("%Y-%m-%d %H:%M").to_string(),
-                None => "—".to_owned(),
+                None => "\u{2014}".to_owned(),
             };
             ui.add_sized(
                 [last_launch_width, ui.available_height()],
@@ -62,7 +64,11 @@ fn instance_row(
                 // Delete (right-most) — disabled when running
                 if ui
                     .add_enabled(!is_busy && !is_running, icon_button(icons::ICON_DELETE))
-                    .on_hover_text(if is_running { "Stop instance first" } else { "Delete" })
+                    .on_hover_text(if is_running {
+                        lang::t("tip.stop_first", lang)
+                    } else {
+                        lang::t("tip.delete", lang)
+                    })
                     .clicked()
                 {
                     actions.delete = true;
@@ -71,14 +77,18 @@ fn instance_row(
                 // Open folder
                 if ui
                     .add(icon_button(icons::ICON_FOLDER))
-                    .on_hover_text("Open folder")
+                    .on_hover_text(lang::t("tip.open_folder", lang))
                     .clicked()
                 {
                     actions.open_folder = true;
                 }
 
                 // View log
-                if ui.add(icon_button(icons::ICON_LOG)).on_hover_text("View log").clicked() {
+                if ui
+                    .add(icon_button(icons::ICON_LOG))
+                    .on_hover_text(lang::t("tip.view_log", lang))
+                    .clicked()
+                {
                     actions.view_log = true;
                 }
 
@@ -88,15 +98,15 @@ fn instance_row(
                         .add(icon_button(
                             egui::RichText::new(icons::ICON_STOP).color(egui::Color32::RED),
                         ))
-                        .on_hover_text("Stop")
+                        .on_hover_text(lang::t("tip.stop", lang))
                         .clicked()
                     {
                         actions.stop = true;
                     }
-                    ui.colored_label(egui::Color32::GREEN, "Running");
+                    ui.colored_label(egui::Color32::GREEN, lang::t("status.running", lang));
                 } else if ui
                     .add_enabled(!is_busy, icon_button(icons::ICON_LAUNCH))
-                    .on_hover_text("Launch")
+                    .on_hover_text(lang::t("tip.launch", lang))
                     .clicked()
                 {
                     actions.launch = true;
@@ -117,19 +127,25 @@ pub fn render(
     handle: &WorkerHandle,
     installed_cores: &[(Hash, LockItem)],
     toasts_out: &mut Toasts,
+    lang: Lang,
 ) {
     // ── Toolbar ──────────────────────────────────────────────────
-    tab_toolbar(ui, "Instances", |ui| {
+    tab_toolbar(ui, lang::t("tab.instances", lang), |ui| {
         if ui
             .add_enabled(!state.busy, icon_button(icons::ICON_VALIDATE))
-            .on_hover_text("Validate instances")
+            .on_hover_text(lang::t("tip.validate_instances", lang))
             .clicked()
         {
             state.busy = true;
             handle.try_send(Command::ValidateInstances);
         }
 
-        if ui.add(icon_button("+")).on_hover_text("New instance").clicked() && state.create_form.is_none() {
+        if ui
+            .add(icon_button("+"))
+            .on_hover_text(lang::t("action.new_instance", lang))
+            .clicked()
+            && state.create_form.is_none()
+        {
             state.create_form = Some(InstanceForm::default());
         }
     });
@@ -142,7 +158,7 @@ pub fn render(
 
     if state.create_form.is_some() {
         let mut open = true;
-        egui::Window::new("New instance")
+        egui::Window::new(lang::t("form.new_instance", lang))
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -150,18 +166,18 @@ pub fn render(
             .show(ui.ctx(), |ui| {
                 let form = state.create_form.as_mut().unwrap();
 
-                form_row(ui, "Name:", &mut form.name);
-                form_row(ui, "Description:", &mut form.description);
+                form_row(ui, lang::t("form.name", lang), &mut form.name);
+                form_row(ui, lang::t("form.description", lang), &mut form.description);
 
                 ui.horizontal(|ui| {
-                    ui.label("Core:");
+                    ui.label(lang::t("form.core", lang));
 
                     let selected_text = match form.selected_core_idx {
                         Some(idx) if idx < installed_cores.len() => {
                             let (_, li) = &installed_cores[idx];
                             format!("{} v{}", li.item.name, li.item.version)
                         },
-                        _ => "(select core)".to_owned(),
+                        _ => lang::t("form.select_core", lang).to_owned(),
                     };
 
                     egui::ComboBox::from_id_salt("core_selector")
@@ -184,7 +200,9 @@ pub fn render(
                 let can_create = !form.name.is_empty() && form.selected_core_idx.is_some();
 
                 ui.horizontal(|ui| {
-                    if ui.add_enabled(can_create, egui::Button::new("Create")).clicked()
+                    if ui
+                        .add_enabled(can_create, egui::Button::new(lang::t("action.create", lang)))
+                        .clicked()
                         && let Some(idx) = form.selected_core_idx
                         && let Some((hash, _)) = installed_cores.get(idx)
                     {
@@ -200,7 +218,7 @@ pub fn render(
                             form.banner.clone(),
                         ));
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(lang::t("action.cancel", lang)).clicked() {
                         should_cancel = true;
                     }
                 });
@@ -220,19 +238,26 @@ pub fn render(
             core_version: core_hash,
             dependencies: vec![],
         };
-        let meta = InstancesItem { icon, banner };
+        let meta = InstancesItem {
+            icon,
+            banner,
+            last_launch: None,
+        };
         handle.try_send(Command::CreateInstance { name, config, meta });
-        toasts::info(toasts_out, "Creating instance...");
+        toasts::info(toasts_out, lang::t("status.creating", lang));
         state.create_form = None;
     }
 
     // ── Validation results ───────────────────────────────────────
     if !state.validation.is_empty() {
-        ui.heading("Validation results");
+        ui.heading(lang::t("section.validation", lang));
         for reason in &state.validation {
             match reason {
                 InstanceValidateReason::NotFound(name, _meta) => {
-                    ui.colored_label(egui::Color32::RED, format!("Directory not found: {name}"));
+                    ui.colored_label(
+                        egui::Color32::RED,
+                        format!("{}: {name}", lang::t("validation.dir_not_found", lang)),
+                    );
                 },
             }
         }
@@ -241,27 +266,33 @@ pub fn render(
     // ── Instance list (fills all remaining space, full width) ────
     if state.installed.is_empty() && state.create_form.is_none() {
         ui.centered_and_justified(|ui| {
-            ui.label("No instances. Press \"+\" to create one.");
+            ui.label(lang::t("status.no_instances", lang));
         });
     } else if !state.installed.is_empty() {
         // Column header with sorting
         ui.horizontal(|ui| {
             let last_launch_width = 140.0;
-            let actions_width = 100.0;
-            let name_width = (ui.available_width() - last_launch_width - actions_width - ui.spacing().item_spacing.x * 2.0).max(80.0);
+            let actions_width = 160.0;
+            let name_width =
+                (ui.available_width() - last_launch_width - actions_width - ui.spacing().item_spacing.x * 3.0)
+                    .max(80.0);
 
             // Name header
             let is_active_name = state.sort_col == InstancesSortColumn::Name;
             let indicator_name = match (is_active_name, state.sort_dir) {
-                (true, SortDir::Ascending) => " ▲",
-                (true, SortDir::Descending) => " ▼",
+                (true, SortDir::Ascending) => " \u{25B2}",
+                (true, SortDir::Descending) => " \u{25BC}",
                 _ => "",
             };
-            let label_name = format!("Name{}", indicator_name);
+            let label_name = format!("{}{}", lang::t("col.name", lang), indicator_name);
 
-            if ui.add_sized([name_width, ui.available_height()],
-                egui::Button::new(egui::RichText::new(label_name).strong()).frame(false)
-            ).clicked() {
+            if ui
+                .add_sized(
+                    [name_width, ui.available_height()],
+                    egui::Button::new(egui::RichText::new(label_name).strong()).frame(false),
+                )
+                .clicked()
+            {
                 if state.sort_col == InstancesSortColumn::Name {
                     state.sort_dir = state.sort_dir.cycle();
                     if state.sort_dir == SortDir::None {
@@ -276,15 +307,19 @@ pub fn render(
             // Last Launch header
             let is_active_launch = state.sort_col == InstancesSortColumn::LastLaunch;
             let indicator_launch = match (is_active_launch, state.sort_dir) {
-                (true, SortDir::Ascending) => " ▲",
-                (true, SortDir::Descending) => " ▼",
+                (true, SortDir::Ascending) => " \u{25B2}",
+                (true, SortDir::Descending) => " \u{25BC}",
                 _ => "",
             };
-            let label_launch = format!("Last Launch{}", indicator_launch);
+            let label_launch = format!("{}{}", lang::t("col.last_launch", lang), indicator_launch);
 
-            if ui.add_sized([last_launch_width, ui.available_height()],
-                egui::Button::new(egui::RichText::new(label_launch).strong()).frame(false)
-            ).clicked() {
+            if ui
+                .add_sized(
+                    [last_launch_width, ui.available_height()],
+                    egui::Button::new(egui::RichText::new(label_launch).strong()).frame(false),
+                )
+                .clicked()
+            {
                 if state.sort_col == InstancesSortColumn::LastLaunch {
                     state.sort_dir = state.sort_dir.cycle();
                     if state.sort_dir == SortDir::None {
@@ -292,12 +327,12 @@ pub fn render(
                     }
                 } else {
                     state.sort_col = InstancesSortColumn::LastLaunch;
-                    state.sort_dir = SortDir::Descending;  // most recent first by default
+                    state.sort_dir = SortDir::Descending;
                 }
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(egui::RichText::new("Actions").strong());
+                ui.label(egui::RichText::new(lang::t("col.actions", lang)).strong());
             });
         });
 
@@ -309,23 +344,15 @@ pub fn render(
             let (name_b, item_b) = &state.installed[b];
 
             match (state.sort_col, state.sort_dir) {
-                (InstancesSortColumn::LastLaunch, SortDir::Descending) => {
-                    item_b.last_launch.cmp(&item_a.last_launch)  // reversed for descending
-                }
-                (InstancesSortColumn::LastLaunch, SortDir::Ascending) => {
-                    item_a.last_launch.cmp(&item_b.last_launch)
-                }
-                (InstancesSortColumn::Name, SortDir::Ascending) => {
-                    name_a.cmp(name_b)
-                }
-                (InstancesSortColumn::Name, SortDir::Descending) => {
-                    name_b.cmp(name_a)
-                }
+                (InstancesSortColumn::LastLaunch, SortDir::Descending) => item_b.last_launch.cmp(&item_a.last_launch),
+                (InstancesSortColumn::LastLaunch, SortDir::Ascending) => item_a.last_launch.cmp(&item_b.last_launch),
+                (InstancesSortColumn::Name, SortDir::Ascending) => name_a.cmp(name_b),
+                (InstancesSortColumn::Name, SortDir::Descending) => name_b.cmp(name_a),
                 _ => std::cmp::Ordering::Equal,
             }
         });
 
-        // Scrollable rows — fills all remaining vertical space
+        // Scrollable rows
         egui::ScrollArea::vertical()
             .id_salt("instances_list_scroll")
             .show(ui, |ui| {
@@ -338,7 +365,7 @@ pub fn render(
                     let is_busy = state.busy || state.busy_instances.contains(name);
                     let is_running = state.running_instances.contains_key(name);
 
-                    let row_actions = instance_row(ui, name, meta, is_busy, is_running, display_idx % 2 == 1);
+                    let row_actions = instance_row(ui, name, meta, is_busy, is_running, display_idx % 2 == 1, lang);
 
                     if row_actions.launch {
                         handle.try_send(Command::LaunchInstance { name: name.clone() });
@@ -370,8 +397,8 @@ pub fn render(
 
     // ── Delete confirmation modal ────────────────────────────────
     if let Some(ref name) = state.confirm_remove.clone() {
-        let msg = format!("Are you sure you want to delete \"{}\"?", name);
-        if let Some(confirmed) = confirm_dialog(ui.ctx(), "Delete instance?", &msg) {
+        let msg = format!("{} \"{}\"?", lang::t("confirm.delete_instance", lang), name);
+        if let Some(confirmed) = confirm_dialog(ui.ctx(), lang::t("confirm.delete_instance", lang), &msg) {
             if confirmed {
                 state.busy_instances.insert(name.clone());
                 handle.try_send(Command::RemoveInstance { name: name.clone() });
@@ -387,7 +414,7 @@ pub fn render(
 
         let is_instance_running = state.running_instances.contains_key(instance_name);
 
-        egui::Window::new(format!("Log: {}", instance_name))
+        egui::Window::new(format!("{}: {}", lang::t("log.title_prefix", lang), instance_name))
             .collapsible(true)
             .resizable(true)
             .default_size([700.0, 450.0])
@@ -397,17 +424,16 @@ pub fn render(
                 ui.horizontal(|ui| {
                     if is_instance_running {
                         ui.spinner();
-                        ui.colored_label(egui::Color32::GREEN, "Running");
+                        ui.colored_label(egui::Color32::GREEN, lang::t("status.running", lang));
                         ui.separator();
                     }
 
-                    // Open file — disabled when running (file may be locked)
                     if ui
                         .add_enabled(!is_instance_running, egui::Button::new(icons::LABEL_OPEN_FILE))
                         .on_hover_text(if is_instance_running {
-                            "Stop instance first"
+                            lang::t("tip.stop_first", lang)
                         } else {
-                            "Open in external editor"
+                            lang::t("tip.open_editor", lang)
                         })
                         .clicked()
                     {
@@ -420,7 +446,7 @@ pub fn render(
                 let log_content = if log_path.exists() {
                     std::fs::read_to_string(&log_path).unwrap_or_else(|e| format!("Error reading log: {e}"))
                 } else {
-                    "No log file found. Launch the instance first.".to_owned()
+                    lang::t("status.no_log", lang).to_owned()
                 };
 
                 egui::ScrollArea::both()

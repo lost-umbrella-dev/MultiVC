@@ -462,6 +462,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let meta = InstancesItem {
                 icon: String::new(),
                 banner: String::new(),
+                last_launch: None,
             };
 
             composer.create_instance(name.clone(), config, meta).await?;

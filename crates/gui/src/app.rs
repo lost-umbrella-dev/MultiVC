@@ -217,6 +217,10 @@ impl App {
             // ── Launch instance ──────────────────────────────────
             Event::InstanceLaunched { name, result: Ok(pid) } => {
                 self.state.instances.running_instances.insert(name.clone(), pid);
+                // Update last_launch in local cache so the UI shows it immediately
+                if let Some((_n, meta)) = self.state.instances.installed.iter_mut().find(|(n, _)| n == &name) {
+                    meta.last_launch = Some(chrono::Utc::now());
+                }
                 toasts::success(toasts, format!("Launched: {name} (PID {pid})"));
             },
             Event::InstanceLaunched { name, result: Err(e) } => {
@@ -305,13 +309,19 @@ impl eframe::App for App {
             .resizable(false)
             .default_size(30.0)
             .show_inside(ui, |ui| {
-                views::sidebar::render(ui, &mut self.current_tab, &self.state.cores.downloads);
+                views::sidebar::render(
+                    ui,
+                    &mut self.current_tab,
+                    &self.state.cores.downloads,
+                    &mut self.state.settings,
+                );
             });
 
         // 3. Central panel — active tab
         egui::CentralPanel::default().show_inside(ui, |ui| match self.current_tab {
             Tab::Cores => {
-                let action = views::cores_tab::render(ui, &ctx, &mut self.state.cores, &self.handle, &mut toasts);
+                let lang = self.state.settings.lock.language;
+                let action = views::cores_tab::render(ui, &ctx, &mut self.state.cores, &self.handle, &mut toasts, lang);
 
                 // Handle cross-tab action: "+" button → switch to Instances with pre-selected core
                 if let Some(core_idx) = action.switch_to_instances_with_core {
@@ -323,17 +333,28 @@ impl eframe::App for App {
                 }
             },
             Tab::Instances => {
+                let lang = self.state.settings.lock.language;
                 views::instances_tab::render(
                     ui,
                     &mut self.state.instances,
                     &self.handle,
                     &self.state.cores.installed,
                     &mut toasts,
+                    lang,
                 );
             },
         });
 
-        // 4. Draw toasts (must be last — renders overlay)
+        // 4. Render settings modal
+        views::settings_modal::render(
+            ui,
+            &mut self.state.settings,
+            self.state.cores.installed.len(),
+            self.state.instances.installed.len(),
+            &mut toasts,
+        );
+
+        // 5. Draw toasts (must be last — renders overlay)
         toasts.show(ui);
     }
 
