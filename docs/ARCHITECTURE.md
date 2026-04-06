@@ -312,6 +312,5 @@ main() → Composer::load()
 - [x] Автосохранение lock после install/remove в worker
 - [x] Автосоздание директорий в `Lock::save()`
 - [ ] Создать крейт `tui` с ratatui
-- [ ] Добавить `Composer::remove_core()` / `remove_instance()` (публичные методы для CLI)
 - [ ] Добавить content packs (провайдеры + `ContentsLock`)
 - [ ] Прогресс-бар в CLI (indicatif или аналог)

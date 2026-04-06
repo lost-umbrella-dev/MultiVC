@@ -5,60 +5,60 @@ default-members = ["crates/cli", "crates/gui"]
 
 [workspace.package]
 version = "1.0.0"
-edition = "2024"
 authors = ["TOwInOK"]
-repository = "https://github.com/lost-umbrella-dev/MultiVC"
+edition = "2024"
 description = "Launcher for VoxelCore"
-publish = false
+readme = "README.md"
+repository = "https://github.com/lost-umbrella-dev/MultiVC"
 keywords = []
 categories = []
-readme = "README.md"
+publish = false
 
 [workspace.dependencies]
+# compute
+rayon = "1.11.0"
 # Errors
 thiserror = "2.0.18"
 # ==== async ====
 # io
 tokio = { version = "1.50.0", default-features = false }
 tokio-util = "0.7.18"
-# compute
-rayon = "1.11.0"
 
 # ==== Tracing ====
 tracing = "0.1.44"
 tracing-subscriber = "0.3.23"
 
-# UUID
-uuid = { version = "1.22.0", features = ["v7", "serde"] }
 # Time
 chrono = { version = "0.4.44", default-features = false }
 # ==== Serde ====
 serde = "1.0.228"
 serde_json = "1.0.149"
+# UUID
+uuid = { version = "1.22.0", features = ["serde", "v7"] }
 
-# ==== Utils ====
-strum = { version = "0.28", features = ["derive"] }
-sha2 = "0.11.0"
 digest = "0.11.2"
 hex = "0.4.3"
+sha2 = "0.11.0"
+# ==== Utils ====
+strum = { version = "0.28", features = ["derive"] }
 
 # ==== self-crates ====
 clients = { path = "crates/clients" }
-composer   = { path = "crates/composer" }
-gui-ui     = { path = "crates/gui-ui" }
+composer = { path = "crates/composer" }
+gui-ui = { path = "crates/gui-ui" }
 
 [workspace.lints.clippy]
 # https://users.rust-lang.org/t/to-string-vs-to-owned-for-string-literals/1441
 str_to_string = "warn"
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(docsrs_dep)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(docsrs_dep)"] }
 
 [profile.release]
 opt-level = "z"
-lto = "thin"
-codegen-units = 1
-panic = "abort"
-strip = "symbols"
 debug = 0
+strip = "symbols"
+lto = "thin"
+panic = "abort"
 incremental = false
+codegen-units = 1
