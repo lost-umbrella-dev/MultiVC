@@ -449,6 +449,12 @@ impl Composer {
         cmd.args(&args);
         cmd.current_dir(&instance_dir);
 
+        #[cfg(windows)]
+        {
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         tracing::debug!(
             exe = %exe_path.display(),
             args = ?args,
