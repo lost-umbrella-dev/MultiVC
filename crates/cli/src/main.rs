@@ -463,6 +463,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 icon: String::new(),
                 banner: String::new(),
                 last_launch: None,
+                created_at: None,
             };
 
             composer.create_instance(name.clone(), config, meta).await?;

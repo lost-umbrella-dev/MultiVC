@@ -13,4 +13,11 @@ pub const ICON_SETTINGS: &str = "\u{2699}"; // ⚙
 
 pub const ICON_TAB_CORES: &str = "\u{2699}"; // ⚙
 pub const ICON_TAB_INSTANCES: &str = "\u{1F4E6}"; // 📦
+pub const ICON_INFO: &str = "\u{2139}"; // ℹ
 pub const LABEL_OPEN_FILE: &str = "\u{1F4C2} Open file"; // 📂 Open file
+
+/// Default icon SVG fallback (simple colored square with cube).
+pub static DEFAULT_ICON_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect width="64" height="64" rx="8" fill="#3b3b4f"/><path d="M32 16l14 8v16l-14 8-14-8V24z" fill="none" stroke="#8888aa" stroke-width="2"/><path d="M32 16l14 8-14 8-14-8z" fill="#8888aa" opacity="0.3"/><line x1="32" y1="32" x2="32" y2="48" stroke="#8888aa" stroke-width="2"/></svg>"##;
+
+/// Default banner SVG fallback (subtle gradient bar).
+pub static DEFAULT_BANNER_SVG: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200" viewBox="0 0 600 200"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#2a2a3d"/><stop offset="100%" stop-color="#3b3b4f"/></linearGradient></defs><rect width="600" height="200" rx="8" fill="url(#g)"/><text x="300" y="108" text-anchor="middle" font-family="sans-serif" font-size="24" fill="#666680">Instance</text></svg>"##;

@@ -278,6 +278,8 @@ impl ComposerWorker {
 
             // ── Instances CRUD ───────────────────────────────────
             Command::CreateInstance { name, config, meta } => {
+                let mut meta = meta;
+                meta.created_at = Some(chrono::Utc::now());
                 match self.composer.create_instance(name.clone(), config, meta).await {
                     Ok(()) => {
                         // Отправляем актуальный снимок инстансов в UI
@@ -414,10 +416,38 @@ impl ComposerWorker {
                 }
             },
 
+            // ── Dir size ─────────────────────────────────────────
+            Command::GetInstanceDirSize { name } => {
+                let path = std::path::Path::new("instances").join(&name);
+                let bytes = dir_size(&path);
+                Event::InstanceDirSize { name, bytes }
+            },
+
             // ── Lifecycle ────────────────────────────────────────
             Command::Shutdown => Event::ShutdownComplete,
         }
     }
+}
+
+/// Recursively calculates the total size (in bytes) of a directory.
+fn dir_size(path: &std::path::Path) -> u64 {
+    if !path.is_dir() {
+        return 0;
+    }
+    let mut total = 0u64;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let meta = entry.metadata();
+            if let Ok(meta) = meta {
+                if meta.is_dir() {
+                    total += dir_size(&entry.path());
+                } else {
+                    total += meta.len();
+                }
+            }
+        }
+    }
+    total
 }
 
 #[cfg(test)]

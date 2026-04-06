@@ -8,3 +8,4 @@ target
 cores
 instances
 .claude/settings.local.json
+settings.toml

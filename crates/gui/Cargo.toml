@@ -23,9 +23,12 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "chron
 tracing-tree = "0.3"
 open = "5"
 toml = "0.8"
-egui_extras = { version = "0.34.1", features = ["svg"] }
+egui_extras = { version = "0.34.1", features = ["svg", "image"] }
 resvg = "0.45"
 serde = { workspace = true, features = ["derive"] }
+rfd = "0.15"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+base64 = "0.22"
 
 [lints]
 workspace = true

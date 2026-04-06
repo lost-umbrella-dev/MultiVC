@@ -267,6 +267,15 @@ impl App {
                 self.state.instances.installed = items;
             },
 
+            // ── Dir size ────────────────────────────────────────────
+            Event::InstanceDirSize { name, bytes } => {
+                if let Some(ref mut panel) = self.state.instances.instance_panel
+                    && panel.name == name
+                {
+                    panel.dir_size = Some(bytes);
+                }
+            },
+
             // ── Errors / Lifecycle ───────────────────────────────
             Event::Error(ref e) => match e {
                 ComposerError::CoreInUse { hash: _, dependents } => {

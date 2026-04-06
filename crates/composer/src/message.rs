@@ -99,6 +99,9 @@ pub enum Command {
     /// Остановить запущенный инстанс (kill процесс).
     StopInstance { name: String },
 
+    /// Получить размер директории инстанса на диске.
+    GetInstanceDirSize { name: String },
+
     /// Завершить background-поток.
     Shutdown,
 }
@@ -175,6 +178,9 @@ pub enum Event {
         /// Exit code, or `None` if killed / unknown.
         status: Option<i32>,
     },
+
+    /// Размер директории инстанса на диске.
+    InstanceDirSize { name: String, bytes: u64 },
 
     /// Произошла фатальная ошибка.
     Error(ComposerError),

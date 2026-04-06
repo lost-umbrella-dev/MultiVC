@@ -19,6 +19,9 @@ pub struct InstancesItem {
     /// Время последнего запуска инстанса.
     #[serde(default)]
     pub last_launch: Option<chrono::DateTime<chrono::Utc>>,
+    /// Время создания инстанса.
+    #[serde(default)]
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Причина невалидности инстанса.

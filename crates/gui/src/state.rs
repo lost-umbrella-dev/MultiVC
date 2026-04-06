@@ -50,6 +50,60 @@ pub enum InstancesSortColumn {
     Name,
 }
 
+// ── Instance panel state ────────────────────────────────────────────
+
+/// Tab within the instance detail panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InstancePanelTab {
+    #[default]
+    Info,
+    Log,
+    Settings,
+}
+
+/// State for the floating instance detail panel (Info/Log/Settings tabs).
+pub struct InstancePanelState {
+    /// Name of the instance being viewed.
+    pub name: String,
+    /// Currently active tab.
+    pub tab: InstancePanelTab,
+    /// Log filter: show [I] lines.
+    pub log_filter_info: bool,
+    /// Log filter: show [W] lines.
+    pub log_filter_warn: bool,
+    /// Log filter: show [E] lines.
+    pub log_filter_error: bool,
+    /// Cached directory size (bytes), refreshed on Info tab open.
+    pub dir_size: Option<u64>,
+    /// Pending edits in Settings tab (description, icon, banner).
+    /// Populated on first Settings tab open, saved on "Save" click.
+    pub edit_description: Option<String>,
+    pub edit_icon: Option<String>,
+    pub edit_banner: Option<String>,
+    /// In-flight icon pick task.
+    pub icon_pick: Option<crate::widgets::ImagePickTask>,
+    /// In-flight banner pick task.
+    pub banner_pick: Option<crate::widgets::ImagePickTask>,
+}
+
+impl InstancePanelState {
+    pub fn new(name: String, tab: InstancePanelTab) -> Self {
+        Self {
+            name,
+            tab,
+            log_filter_info: true,
+            log_filter_warn: true,
+            log_filter_error: true,
+            dir_size: None,
+            edit_description: None,
+            edit_icon: None,
+            edit_banner: None,
+            icon_pick: None,
+            banner_pick: None,
+        }
+    }
+}
+
 // ── Settings state ───────────────────────────────────────────────────
 
 /// Settings state — persisted settings and modal state.
@@ -140,8 +194,8 @@ pub struct InstancesTabState {
     pub busy: bool,
     /// Запущенные инстансы: имя → PID.
     pub running_instances: HashMap<String, u32>,
-    /// Имя инстанса, чей лог сейчас открыт в модалке.
-    pub log_viewer: Option<String>,
+    /// Floating instance detail panel (replaces old log_viewer).
+    pub instance_panel: Option<InstancePanelState>,
     /// Sort column for instances.
     pub sort_col: InstancesSortColumn,
     /// Sort direction for instances.
@@ -160,7 +214,7 @@ impl Default for InstancesTabState {
             confirm_remove: None,
             busy: false,
             running_instances: HashMap::new(),
-            log_viewer: None,
+            instance_panel: None,
             sort_col: InstancesSortColumn::default(),
             sort_dir: SortDir::Descending,
         }
