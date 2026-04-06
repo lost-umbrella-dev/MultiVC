@@ -67,7 +67,10 @@ impl HotLib {
                     // library lives as long as this struct.
                     let render_fn: libloading::Symbol<unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)> =
                         match lib.get::<unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>(b"render_ui") {
-                            Ok(sym) => std::mem::transmute(sym),
+                            Ok(sym) => std::mem::transmute::<
+                                libloading::Symbol<'_, unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>,
+                                libloading::Symbol<'_, unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>,
+                            >(sym),
                             Err(e) => {
                                 tracing::error!("Failed to find render_ui in DLL: {e}");
                                 return None;
@@ -398,13 +401,12 @@ impl eframe::App for App {
             }
 
             // Check for DLL changes every frame (cheap: just stat the file)
-            if let Some(ref hot) = self.hot_lib {
-                if hot.needs_reload() {
+            if let Some(ref hot) = self.hot_lib
+                && hot.needs_reload() {
                     tracing::info!("Hot-reload: DLL changed, reloading...");
                     self.hot_lib = None; // drop old library first
                     self.hot_lib = HotLib::load();
                 }
-            }
         }
 
         // Drain events

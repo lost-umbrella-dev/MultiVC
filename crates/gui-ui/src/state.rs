@@ -67,11 +67,11 @@ pub struct InstancePanelState {
     pub name: String,
     /// Currently active tab.
     pub tab: InstancePanelTab,
-    /// Log filter: show [I] lines.
+    /// Log filter: show \[`I`] lines.
     pub log_filter_info: bool,
-    /// Log filter: show [W] lines.
+    /// Log filter: show \[`W`] lines.
     pub log_filter_warn: bool,
-    /// Log filter: show [E] lines.
+    /// Log filter: show \[`E`] lines.
     pub log_filter_error: bool,
     /// Cached directory size (bytes), refreshed on Info tab open.
     pub dir_size: Option<u64>,
