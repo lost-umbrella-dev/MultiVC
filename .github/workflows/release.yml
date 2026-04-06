@@ -78,9 +78,8 @@ jobs:
       - name: Package archive (Unix)
         if: runner.os != 'Windows'
         run: |
-          tar czf multivc-${{ matrix.target }}.tar.gz \
-            -C target/${{ matrix.target }}/release \
-            cli gui
+          cd target/${{ matrix.target }}/release
+          zip ../../../multivc-${{ matrix.target }}.zip cli gui
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
