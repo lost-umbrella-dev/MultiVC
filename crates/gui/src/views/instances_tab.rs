@@ -1,0 +1,310 @@
+//! Instances tab view.
+
+use eframe::egui;
+use egui_toast::Toasts;
+
+use clients::hash::Hash;
+use composer::item::LockItem;
+use composer::lock::instance::Instance;
+use composer::lock::instances::{InstanceValidateReason, InstancesItem};
+use composer::message::Command;
+use composer::worker::WorkerHandle;
+
+use crate::state::{InstanceForm, InstancesTabState};
+use crate::toasts;
+
+// ── Row helpers ──────────────────────────────────────────────────────
+
+#[derive(Default)]
+struct InstanceRowActions {
+    launch: bool,
+    open_folder: bool,
+    delete: bool,
+}
+
+fn instance_row(
+    ui: &mut egui::Ui,
+    name: &str,
+    _meta: &InstancesItem,
+    is_busy: bool,
+    striped_bg: bool,
+) -> InstanceRowActions {
+    let mut actions = InstanceRowActions::default();
+
+    let frame = if striped_bg {
+        egui::Frame::NONE.fill(ui.visuals().faint_bg_color)
+    } else {
+        egui::Frame::NONE
+    };
+
+    frame.show(ui, |ui| {
+        ui.set_width(ui.available_width());
+        ui.horizontal(|ui| {
+            let actions_width = 100.0;
+            let name_width = (ui.available_width() - actions_width - ui.spacing().item_spacing.x).max(80.0);
+
+            ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
+
+            // Actions — right side
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Delete (right-most)
+                if ui
+                    .add_enabled(!is_busy, egui::Button::new("\u{1F5D1}").small())
+                    .on_hover_text("Delete")
+                    .clicked()
+                {
+                    actions.delete = true;
+                }
+
+                // Open folder
+                if ui.button("\u{1F4C2}").on_hover_text("Open folder").clicked() {
+                    actions.open_folder = true;
+                }
+
+                // Launch
+                if ui
+                    .add_enabled(!is_busy, egui::Button::new("\u{25B6}").small())
+                    .on_hover_text("Launch")
+                    .clicked()
+                {
+                    actions.launch = true;
+                }
+            });
+        });
+    });
+
+    actions
+}
+
+// ── Main render ──────────────────────────────────────────────────────
+
+/// Renders the Instances tab content.
+pub fn render(
+    ui: &mut egui::Ui,
+    state: &mut InstancesTabState,
+    handle: &WorkerHandle,
+    installed_cores: &[(Hash, LockItem)],
+    toasts_out: &mut Toasts,
+) {
+    // ── Toolbar ──────────────────────────────────────────────────
+    ui.horizontal(|ui| {
+        ui.heading("Instances");
+
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui
+                .add_enabled(!state.busy, egui::Button::new("\u{2714}"))
+                .on_hover_text("Validate instances")
+                .clicked()
+            {
+                state.busy = true;
+                handle.try_send(Command::ValidateInstances);
+            }
+
+            if ui.button("+").on_hover_text("New instance").clicked() && state.create_form.is_none() {
+                state.create_form = Some(InstanceForm::default());
+            }
+        });
+    });
+
+    ui.separator();
+
+    // ── Create instance modal ────────────────────────────────────
+    let mut should_create_instance: Option<(String, Hash, Option<String>, String, String)> = None;
+    let mut should_cancel = false;
+
+    if state.create_form.is_some() {
+        let mut open = true;
+        egui::Window::new("New instance")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .open(&mut open)
+            .show(ui.ctx(), |ui| {
+                let form = state.create_form.as_mut().unwrap();
+
+                ui.horizontal(|ui| {
+                    ui.label("Name:");
+                    ui.text_edit_singleline(&mut form.name);
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Description:");
+                    ui.text_edit_singleline(&mut form.description);
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Core:");
+
+                    let selected_text = match form.selected_core_idx {
+                        Some(idx) if idx < installed_cores.len() => {
+                            let (_, li) = &installed_cores[idx];
+                            format!("{} v{}", li.item.name, li.item.version)
+                        },
+                        _ => "(select core)".to_owned(),
+                    };
+
+                    egui::ComboBox::from_id_salt("core_selector")
+                        .selected_text(selected_text)
+                        .show_ui(ui, |ui| {
+                            for (idx, (hash, li)) in installed_cores.iter().enumerate() {
+                                let label = format!("{} v{}", li.item.name, li.item.version);
+                                let hash_short = {
+                                    let s = hash.to_string();
+                                    if s.len() > 12 { format!("{}...", &s[..12]) } else { s }
+                                };
+                                let display = format!("{label}  ({hash_short})");
+                                ui.selectable_value(&mut form.selected_core_idx, Some(idx), display);
+                            }
+                        });
+                });
+
+                ui.add_space(8.0);
+
+                let can_create = !form.name.is_empty() && form.selected_core_idx.is_some();
+
+                ui.horizontal(|ui| {
+                    if ui.add_enabled(can_create, egui::Button::new("Create")).clicked() {
+                        if let Some(idx) = form.selected_core_idx {
+                            if let Some((hash, _)) = installed_cores.get(idx) {
+                                should_create_instance = Some((
+                                    form.name.clone(),
+                                    hash.clone(),
+                                    if form.description.is_empty() {
+                                        None
+                                    } else {
+                                        Some(form.description.clone())
+                                    },
+                                    form.icon.clone(),
+                                    form.banner.clone(),
+                                ));
+                            }
+                        }
+                    }
+                    if ui.button("Cancel").clicked() {
+                        should_cancel = true;
+                    }
+                });
+            });
+        if !open {
+            state.create_form = None;
+        }
+    }
+
+    if should_cancel {
+        state.create_form = None;
+    }
+
+    if let Some((name, core_hash, description, icon, banner)) = should_create_instance {
+        let config = Instance {
+            description,
+            core_version: core_hash,
+            dependencies: vec![],
+        };
+        let meta = InstancesItem { icon, banner };
+        handle.try_send(Command::CreateInstance { name, config, meta });
+        toasts::info(toasts_out, "Creating instance...");
+        state.create_form = None;
+    }
+
+    // ── Validation results ───────────────────────────────────────
+    if !state.validation.is_empty() {
+        ui.separator();
+        ui.heading("Validation results");
+        for reason in &state.validation {
+            match reason {
+                InstanceValidateReason::NotFound(name, _meta) => {
+                    ui.colored_label(egui::Color32::RED, format!("Directory not found: {name}"));
+                },
+            }
+        }
+    }
+
+    // ── Instance list (fills all remaining space, full width) ────
+    if state.installed.is_empty() && state.create_form.is_none() {
+        ui.centered_and_justified(|ui| {
+            ui.label("No instances. Press \"+\" to create one.");
+        });
+    } else if !state.installed.is_empty() {
+        ui.separator();
+
+        // Column header
+        ui.horizontal(|ui| {
+            let actions_width = 100.0;
+            let name_width = (ui.available_width() - actions_width - ui.spacing().item_spacing.x).max(80.0);
+
+            ui.add_sized(
+                [name_width, ui.available_height()],
+                egui::Label::new(egui::RichText::new("Name").strong()),
+            );
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.label(egui::RichText::new("Actions").strong());
+            });
+        });
+
+        // Scrollable rows — fills all remaining vertical space
+        egui::ScrollArea::vertical()
+            .id_salt("instances_list_scroll")
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+
+                let mut to_remove: Option<String> = None;
+
+                for (idx, (name, meta)) in state.installed.iter().enumerate() {
+                    let is_busy = state.busy || state.busy_instances.contains(name);
+
+                    let row_actions = instance_row(ui, name, meta, is_busy, idx % 2 == 1);
+
+                    if row_actions.launch {
+                        // TODO: send LaunchInstance command when added to protocol
+                        toasts::warning(toasts_out, format!("Launch not yet implemented: {name}"));
+                    }
+
+                    if row_actions.open_folder {
+                        let folder = std::path::Path::new("instances").join(name);
+                        if folder.exists() {
+                            if let Err(e) = open::that(&folder) {
+                                toasts::error(toasts_out, format!("Failed to open folder: {e}"));
+                            }
+                        } else {
+                            toasts::warning(toasts_out, format!("Folder does not exist: {}", folder.display()));
+                        }
+                    }
+
+                    if row_actions.delete {
+                        to_remove = Some(name.clone());
+                    }
+                }
+
+                if let Some(name) = to_remove {
+                    state.confirm_remove = Some(name);
+                }
+            });
+    }
+
+    // ── Delete confirmation modal ────────────────────────────────
+    if let Some(ref name) = state.confirm_remove.clone() {
+        let mut open = true;
+        egui::Window::new("Delete instance?")
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .open(&mut open)
+            .show(ui.ctx(), |ui| {
+                ui.label(format!("Are you sure you want to delete \"{}\"?", name));
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Yes, delete").clicked() {
+                        state.busy_instances.insert(name.clone());
+                        handle.try_send(Command::RemoveInstance { name: name.clone() });
+                        state.confirm_remove = None;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        state.confirm_remove = None;
+                    }
+                });
+            });
+        if !open {
+            state.confirm_remove = None;
+        }
+    }
+}

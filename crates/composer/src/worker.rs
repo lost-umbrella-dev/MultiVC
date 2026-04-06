@@ -17,7 +17,6 @@
 use tokio::sync::mpsc;
 
 use crate::Composer;
-use crate::lock::Lock;
 use crate::message::{Command, CoresInstalledResult, Event, InstancesSnapshot};
 
 // ── Handles ──────────────────────────────────────────────────────────
@@ -208,7 +207,7 @@ impl ComposerWorker {
 
             // ── Remove core ──────────────────────────────────────
             Command::RemoveCore { hash } => {
-                match self.composer.cores.remove(&hash).await {
+                match self.composer.remove_core(&hash).await {
                     Ok(item) => {
                         // Автосохраняем lock после удаления
                         if item.is_some() {

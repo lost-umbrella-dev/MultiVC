@@ -4,6 +4,11 @@
 //! [`ComposerWorker`] в фоновом потоке и открывает окно eframe/egui.
 
 mod app;
+mod download_tracker;
+mod state;
+mod toasts;
+mod views;
+mod widgets;
 
 use app::App;
 use clients::{Clients, github::GithubClient};
