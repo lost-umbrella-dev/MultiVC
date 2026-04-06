@@ -10,9 +10,10 @@ use composer::lock::instances::{InstanceValidateReason, InstancesItem};
 use composer::message::Command;
 use composer::worker::WorkerHandle;
 
+use crate::icons;
 use crate::state::{InstanceForm, InstancesTabState};
 use crate::toasts;
-use crate::widgets::icon_button;
+use crate::widgets::{confirm_dialog, form_row, icon_button, striped_frame, tab_toolbar};
 
 // ── Row helpers ──────────────────────────────────────────────────────
 
@@ -35,11 +36,7 @@ fn instance_row(
 ) -> InstanceRowActions {
     let mut actions = InstanceRowActions::default();
 
-    let frame = if striped_bg {
-        egui::Frame::NONE.fill(ui.visuals().faint_bg_color)
-    } else {
-        egui::Frame::NONE
-    };
+    let frame = striped_frame(striped_bg, ui);
 
     frame.show(ui, |ui| {
         ui.set_width(ui.available_width());
@@ -49,11 +46,10 @@ fn instance_row(
 
             ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
 
-            // Actions — right side
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Delete (right-most) — disabled when running
                 if ui
-                    .add_enabled(!is_busy && !is_running, icon_button("\u{1F5D1}"))
+                    .add_enabled(!is_busy && !is_running, icon_button(icons::ICON_DELETE))
                     .on_hover_text(if is_running { "Stop instance first" } else { "Delete" })
                     .clicked()
                 {
@@ -62,7 +58,7 @@ fn instance_row(
 
                 // Open folder
                 if ui
-                    .add(icon_button("\u{1F4C2}"))
+                    .add(icon_button(icons::ICON_FOLDER))
                     .on_hover_text("Open folder")
                     .clicked()
                 {
@@ -70,18 +66,16 @@ fn instance_row(
                 }
 
                 // View log
-                if ui
-                    .add(icon_button("\u{1F4C4}"))
-                    .on_hover_text("View log")
-                    .clicked()
-                {
+                if ui.add(icon_button(icons::ICON_LOG)).on_hover_text("View log").clicked() {
                     actions.view_log = true;
                 }
 
                 // Launch / Stop
                 if is_running {
                     if ui
-                        .add(icon_button(egui::RichText::new("\u{23F9}").color(egui::Color32::RED)))
+                        .add(icon_button(
+                            egui::RichText::new(icons::ICON_STOP).color(egui::Color32::RED),
+                        ))
                         .on_hover_text("Stop")
                         .clicked()
                     {
@@ -89,7 +83,7 @@ fn instance_row(
                     }
                     ui.colored_label(egui::Color32::GREEN, "Running");
                 } else if ui
-                    .add_enabled(!is_busy, icon_button("\u{25B6}"))
+                    .add_enabled(!is_busy, icon_button(icons::ICON_LAUNCH))
                     .on_hover_text("Launch")
                     .clicked()
                 {
@@ -113,28 +107,19 @@ pub fn render(
     toasts_out: &mut Toasts,
 ) {
     // ── Toolbar ──────────────────────────────────────────────────
-    ui.horizontal(|ui| {
-        ui.heading("Instances");
+    tab_toolbar(ui, "Instances", |ui| {
+        if ui
+            .add_enabled(!state.busy, icon_button(icons::ICON_VALIDATE))
+            .on_hover_text("Validate instances")
+            .clicked()
+        {
+            state.busy = true;
+            handle.try_send(Command::ValidateInstances);
+        }
 
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui
-                .add_enabled(!state.busy, icon_button("\u{2714}"))
-                .on_hover_text("Validate instances")
-                .clicked()
-            {
-                state.busy = true;
-                handle.try_send(Command::ValidateInstances);
-            }
-
-            if ui
-                .add(icon_button("+"))
-                .on_hover_text("New instance")
-                .clicked()
-                && state.create_form.is_none()
-            {
-                state.create_form = Some(InstanceForm::default());
-            }
-        });
+        if ui.add(icon_button("+")).on_hover_text("New instance").clicked() && state.create_form.is_none() {
+            state.create_form = Some(InstanceForm::default());
+        }
     });
 
     ui.separator();
@@ -153,15 +138,8 @@ pub fn render(
             .show(ui.ctx(), |ui| {
                 let form = state.create_form.as_mut().unwrap();
 
-                ui.horizontal(|ui| {
-                    ui.label("Name:");
-                    ui.text_edit_singleline(&mut form.name);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Description:");
-                    ui.text_edit_singleline(&mut form.description);
-                });
+                form_row(ui, "Name:", &mut form.name);
+                form_row(ui, "Description:", &mut form.description);
 
                 ui.horizontal(|ui| {
                     ui.label("Core:");
@@ -318,27 +296,12 @@ pub fn render(
 
     // ── Delete confirmation modal ────────────────────────────────
     if let Some(ref name) = state.confirm_remove.clone() {
-        let mut open = true;
-        egui::Window::new("Delete instance?")
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .open(&mut open)
-            .show(ui.ctx(), |ui| {
-                ui.label(format!("Are you sure you want to delete \"{}\"?", name));
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Yes, delete").clicked() {
-                        state.busy_instances.insert(name.clone());
-                        handle.try_send(Command::RemoveInstance { name: name.clone() });
-                        state.confirm_remove = None;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        state.confirm_remove = None;
-                    }
-                });
-            });
-        if !open {
+        let msg = format!("Are you sure you want to delete \"{}\"?", name);
+        if let Some(confirmed) = confirm_dialog(ui.ctx(), "Delete instance?", &msg) {
+            if confirmed {
+                state.busy_instances.insert(name.clone());
+                handle.try_send(Command::RemoveInstance { name: name.clone() });
+            }
             state.confirm_remove = None;
         }
     }
@@ -366,7 +329,7 @@ pub fn render(
 
                     // Open file — disabled when running (file may be locked)
                     if ui
-                        .add_enabled(!is_instance_running, egui::Button::new("\u{1F4C2} Open file"))
+                        .add_enabled(!is_instance_running, egui::Button::new(icons::LABEL_OPEN_FILE))
                         .on_hover_text(if is_instance_running {
                             "Stop instance first"
                         } else {

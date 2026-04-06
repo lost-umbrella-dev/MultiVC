@@ -23,7 +23,7 @@ impl ProgressRing {
         Self {
             fraction,
             radius: 8.0,
-            stroke_width: 2.5,
+            stroke_width: 2.,
         }
     }
 

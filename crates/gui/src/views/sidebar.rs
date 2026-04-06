@@ -11,8 +11,8 @@ pub fn render(ui: &mut egui::Ui, current_tab: &mut Tab, downloads: &DownloadTrac
     ui.horizontal(|ui| {
         ui.heading("MultiVC");
         ui.separator();
-        ui.selectable_value(current_tab, Tab::Cores, "\u{2699} Cores");
-        ui.selectable_value(current_tab, Tab::Instances, "\u{1F4E6} Instances");
+        ui.selectable_value(current_tab, Tab::Cores, icons::TAB_CORES_LABEL);
+        ui.selectable_value(current_tab, Tab::Instances, icons::TAB_INSTANCES_LABEL);
 
         // Spacer — push download indicator to the right
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -44,7 +44,7 @@ pub fn render(ui: &mut egui::Ui, current_tab: &mut Tab, downloads: &DownloadTrac
             }
             ui.separator();
             if downloads.has_active() {
-                ui.label(format!("\u{2B07} {}", downloads.active_count()));
+                ui.label(format!("{} {}", icons::ICON_DOWNLOAD, downloads.active_count()));
                 ui.spinner();
             }
         });

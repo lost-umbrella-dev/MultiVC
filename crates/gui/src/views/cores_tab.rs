@@ -11,10 +11,10 @@ use composer::lock::ValidateReason;
 use composer::message::Command;
 use composer::worker::WorkerHandle;
 
+use crate::icons;
 use crate::state::CoresTabState;
 use crate::toasts;
-use crate::widgets::icon_button;
-use crate::widgets::ProgressRing;
+use crate::widgets::{ProgressRing, confirm_dialog, icon_button, striped_frame, tab_toolbar};
 
 /// Результат рендера — действия, которые должен обработать App.
 pub struct CoresTabAction {
@@ -42,11 +42,7 @@ fn installed_core_row(
     let mut actions = RowActions::default();
     let has_dependents = !dependents.is_empty();
 
-    let frame = if striped_bg {
-        egui::Frame::NONE.fill(ui.visuals().faint_bg_color)
-    } else {
-        egui::Frame::NONE
-    };
+    let frame = striped_frame(striped_bg, ui);
 
     frame.show(ui, |ui| {
         ui.set_width(ui.available_width());
@@ -64,20 +60,16 @@ fn installed_core_row(
                 .on_hover_text(hash_full);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add(icon_button("+"))
-                    .on_hover_text("Create instance")
-                    .clicked()
-                {
+                if ui.add(icon_button("+")).on_hover_text("Create instance").clicked() {
                     actions.create_instance = true;
                 }
 
                 if has_dependents {
                     let tooltip = format!("Used by: [ {} ]", dependents.join(", "));
-                    let btn = icon_button(egui::RichText::new("\u{1F5D1}").color(egui::Color32::YELLOW));
+                    let btn = icon_button(egui::RichText::new(icons::ICON_DELETE).color(egui::Color32::YELLOW));
                     ui.add_enabled(false, btn).on_disabled_hover_text(tooltip);
                 } else if ui
-                    .add(icon_button("\u{1F5D1}"))
+                    .add(icon_button(icons::ICON_DELETE))
                     .on_hover_text("Delete")
                     .clicked()
                 {
@@ -109,11 +101,7 @@ fn available_core_row(
 ) -> AvailableRowAction {
     let mut action = AvailableRowAction::None;
 
-    let frame = if striped_bg {
-        egui::Frame::NONE.fill(ui.visuals().faint_bg_color)
-    } else {
-        egui::Frame::NONE
-    };
+    let frame = striped_frame(striped_bg, ui);
 
     frame.show(ui, |ui| {
         ui.set_width(ui.available_width());
@@ -125,12 +113,10 @@ fn available_core_row(
                 (ui.available_width() - version_width - size_width - status_width - ui.spacing().item_spacing.x * 4.0)
                     .max(80.0);
 
-            // Data columns
             ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
             ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
             ui.add_sized([size_width, ui.available_height()], egui::Label::new(size_text));
 
-            // Status column (rightmost): checkmark / checkbox / progress ring
             if is_downloading {
                 ui.add_sized(
                     [status_width, ui.available_height()],
@@ -139,7 +125,11 @@ fn available_core_row(
             } else if is_installed {
                 ui.add_sized(
                     [status_width, ui.available_height()],
-                    egui::Label::new(egui::RichText::new("\u{2714}").color(egui::Color32::GREEN).strong()),
+                    egui::Label::new(
+                        egui::RichText::new(icons::ICON_VALIDATE)
+                            .color(egui::Color32::GREEN)
+                            .strong(),
+                    ),
                 )
                 .on_hover_text("Installed");
             } else {
@@ -195,73 +185,54 @@ pub fn render(
     let global_busy = state.busy || state.downloads.has_active();
 
     // ── Toolbar (right-aligned icons) ────────────────────────────
-    ui.horizontal(|ui| {
-        ui.heading("Cores");
+    tab_toolbar(ui, "Cores", |ui| {
+        // Validate
+        if ui
+            .add_enabled(!global_busy, icon_button(icons::ICON_VALIDATE))
+            .on_hover_text("Validate cores")
+            .clicked()
+        {
+            state.busy = true;
+            handle.try_send(Command::ValidateCores);
+        }
 
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            // Validate
-            if ui
-                .add_enabled(!global_busy, icon_button("\u{2714}"))
-                .on_hover_text("Validate cores")
-                .clicked()
-            {
-                state.busy = true;
-                handle.try_send(Command::ValidateCores);
-            }
+        // Refresh
+        if ui
+            .add_enabled(!global_busy, icon_button(icons::ICON_REFRESH))
+            .on_hover_text("Fetch from GitHub")
+            .clicked()
+        {
+            state.busy = true;
+            handle.try_send(Command::FetchCoresList {
+                search_version: GitHubListOptions { search_version: vec![] },
+            });
+            toasts::info(toasts_out, "Fetching versions...");
+        }
 
-            // Refresh
-            if ui
-                .add_enabled(!global_busy, icon_button("\u{21BB}"))
-                .on_hover_text("Fetch from GitHub")
-                .clicked()
-            {
-                state.busy = true;
-                handle.try_send(Command::FetchCoresList {
-                    search_version: GitHubListOptions { search_version: vec![] },
-                });
-                toasts::info(toasts_out, "Fetching versions...");
+        // Download selected — only shown when there are pending items
+        let pending_count = state.pending_installs.len();
+        if pending_count > 0 {
+            let label = format!("Download ({})", pending_count);
+            if ui.button(label).on_hover_text("Download all selected cores").clicked() {
+                let items: Vec<_> = state.pending_installs.drain(..).collect();
+                let requests: Vec<_> = items
+                    .into_iter()
+                    .map(|item| state.downloads.start(&item, ctx))
+                    .collect();
+                handle.try_send(Command::InstallCores { requests });
             }
-
-            // Download selected — only shown when there are pending items
-            let pending_count = state.pending_installs.len();
-            if pending_count > 0 {
-                let label = format!("Download ({})", pending_count);
-                if ui.button(label).on_hover_text("Download all selected cores").clicked() {
-                    let items: Vec<_> = state.pending_installs.drain(..).collect();
-                    let requests: Vec<_> = items
-                        .into_iter()
-                        .map(|item| state.downloads.start(&item, ctx))
-                        .collect();
-                    handle.try_send(Command::InstallCores { requests });
-                }
-            }
-        });
+        }
     });
 
     ui.separator();
 
     // ── Delete confirmation modal ────────────────────────────────
     if let Some((ref hash, ref display_name)) = state.confirm_remove.clone() {
-        let mut open = true;
-        egui::Window::new("Delete core?")
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-            .open(&mut open)
-            .show(ui.ctx(), |ui| {
-                ui.label(format!("Are you sure you want to delete \"{}\"?", display_name));
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    if ui.button("Yes, delete").clicked() {
-                        handle.try_send(Command::RemoveCore { hash: hash.clone() });
-                        state.confirm_remove = None;
-                    }
-                    if ui.button("Cancel").clicked() {
-                        state.confirm_remove = None;
-                    }
-                });
-            });
-        if !open {
+        let msg = format!("Are you sure you want to delete \"{}\"?", display_name);
+        if let Some(confirmed) = confirm_dialog(ui.ctx(), "Delete core?", &msg) {
+            if confirmed {
+                handle.try_send(Command::RemoveCore { hash: hash.clone() });
+            }
             state.confirm_remove = None;
         }
     }
@@ -429,13 +400,11 @@ pub fn render(
 
                     match row_action {
                         AvailableRowAction::Select => {
-                            // Add to pending if not already there
                             if !is_selected {
                                 state.pending_installs.push(item.clone());
                             }
                         },
                         AvailableRowAction::Deselect => {
-                            // Remove from pending
                             state
                                 .pending_installs
                                 .retain(|p| !(p.name == item.name && p.version == item.version));
