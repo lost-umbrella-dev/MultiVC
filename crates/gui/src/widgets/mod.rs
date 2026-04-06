@@ -41,7 +41,13 @@ pub fn tab_toolbar(ui: &mut egui::Ui, title: &str, buttons: impl FnOnce(&mut egu
 /// Shows a centered confirmation dialog.
 ///
 /// Returns `Some(true)` if confirmed, `Some(false)` if cancelled or closed, `None` if still open.
-pub fn confirm_dialog(ctx: &egui::Context, title: &str, message: &str) -> Option<bool> {
+pub fn confirm_dialog(
+    ctx: &egui::Context,
+    title: &str,
+    message: &str,
+    confirm_text: &str,
+    cancel_text: &str,
+) -> Option<bool> {
     let mut result = None;
     let mut open = true;
 
@@ -54,10 +60,10 @@ pub fn confirm_dialog(ctx: &egui::Context, title: &str, message: &str) -> Option
             ui.label(message);
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button("Yes, delete").clicked() {
+                if ui.button(confirm_text).clicked() {
                     result = Some(true);
                 }
-                if ui.button("Cancel").clicked() {
+                if ui.button(cancel_text).clicked() {
                     result = Some(false);
                 }
             });

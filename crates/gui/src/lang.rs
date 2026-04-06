@@ -41,6 +41,8 @@ pub fn t(key: &str, lang: Lang) -> &'static str {
         ("action.cancel", Lang::Ru) => "Отмена",
         ("action.download", Lang::En) => "Download",
         ("action.download", Lang::Ru) => "Скачать",
+        ("action.yes_delete", Lang::En) => "Yes, delete",
+        ("action.yes_delete", Lang::Ru) => "Да, удалить",
 
         // ── Settings modal ──────────────────────────────────────
         ("settings.title", Lang::En) => "Settings",

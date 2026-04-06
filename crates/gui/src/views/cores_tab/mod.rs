@@ -1,5 +1,8 @@
 //! Cores tab view.
 
+mod rows;
+use rows::{AvailableRowAction, available_core_row, installed_core_row};
+
 use std::collections::HashSet;
 
 use eframe::egui;
@@ -15,7 +18,7 @@ use crate::icons;
 use crate::lang::{self, Lang};
 use crate::state::{CoresSortColumn, CoresTabState, SortDir};
 use crate::toasts;
-use crate::widgets::{ProgressRing, confirm_dialog, icon_button, striped_frame, tab_toolbar};
+use crate::widgets::{confirm_dialog, icon_button, tab_toolbar};
 
 // ── Helper functions ─────────────────────────────────────────────────
 
@@ -35,146 +38,6 @@ fn semver_cmp(a: &str, b: &str) -> std::cmp::Ordering {
 pub struct CoresTabAction {
     /// Переключить на вкладку Instances с предзаполненным ядром.
     pub switch_to_instances_with_core: Option<usize>,
-}
-
-// ── Row helpers ──────────────────────────────────────────────────────
-
-#[derive(Default)]
-struct RowActions {
-    delete: bool,
-    create_instance: bool,
-}
-
-#[allow(clippy::too_many_arguments)]
-fn installed_core_row(
-    ui: &mut egui::Ui,
-    name: &str,
-    version: &str,
-    hash_short: &str,
-    hash_full: &str,
-    dependents: &[String],
-    striped_bg: bool,
-    lang: Lang,
-) -> RowActions {
-    let mut actions = RowActions::default();
-    let has_dependents = !dependents.is_empty();
-
-    let frame = striped_frame(striped_bg, ui);
-
-    frame.show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal(|ui| {
-            let actions_width = 60.0;
-            let version_width = 80.0;
-            let hash_width = 160.0;
-            let name_width =
-                (ui.available_width() - version_width - hash_width - actions_width - ui.spacing().item_spacing.x * 4.0)
-                    .max(80.0);
-
-            ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
-            ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
-            ui.add_sized([hash_width, ui.available_height()], egui::Label::new(hash_short))
-                .on_hover_text(hash_full);
-
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
-                    .add(icon_button("+"))
-                    .on_hover_text(lang::t("tip.create_instance", lang))
-                    .clicked()
-                {
-                    actions.create_instance = true;
-                }
-
-                if has_dependents {
-                    let tooltip = format!("Used by: [ {} ]", dependents.join(", "));
-                    let btn = icon_button(egui::RichText::new(icons::ICON_DELETE).color(egui::Color32::YELLOW));
-                    ui.add_enabled(false, btn).on_disabled_hover_text(tooltip);
-                } else if ui
-                    .add(icon_button(icons::ICON_DELETE))
-                    .on_hover_text(lang::t("tip.delete", lang))
-                    .clicked()
-                {
-                    actions.delete = true;
-                }
-            });
-        });
-    });
-
-    actions
-}
-
-#[allow(clippy::too_many_arguments)]
-/// Renders a row in the available versions list.
-fn available_core_row(
-    ui: &mut egui::Ui,
-    name: &str,
-    version: &str,
-    size_text: &str,
-    is_downloading: bool,
-    download_fraction: Option<f32>,
-    is_installed: bool,
-    is_selected: bool,
-    striped_bg: bool,
-    lang: Lang,
-) -> AvailableRowAction {
-    let mut action = AvailableRowAction::None;
-
-    let frame = striped_frame(striped_bg, ui);
-
-    frame.show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal(|ui| {
-            let status_width = 30.0;
-            let size_width = 80.0;
-            let version_width = 80.0;
-            let name_width =
-                (ui.available_width() - version_width - size_width - status_width - ui.spacing().item_spacing.x * 4.0)
-                    .max(80.0);
-
-            ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
-            ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
-            ui.add_sized([size_width, ui.available_height()], egui::Label::new(size_text));
-
-            if is_downloading {
-                ui.add_sized(
-                    [status_width, ui.available_height()],
-                    ProgressRing::new(download_fraction),
-                );
-            } else if is_installed {
-                ui.add_sized(
-                    [status_width, ui.available_height()],
-                    egui::Label::new(
-                        egui::RichText::new(icons::ICON_VALIDATE)
-                            .color(egui::Color32::GREEN)
-                            .strong(),
-                    ),
-                )
-                .on_hover_text(lang::t("tip.installed", lang));
-            } else {
-                let mut selected = is_selected;
-                let cb = ui.add_sized(
-                    [status_width, ui.available_height()],
-                    egui::Checkbox::without_text(&mut selected),
-                );
-                if cb.clicked() {
-                    action = if selected {
-                        AvailableRowAction::Select
-                    } else {
-                        AvailableRowAction::Deselect
-                    };
-                }
-            }
-        });
-    });
-
-    action
-}
-
-#[derive(PartialEq)]
-enum AvailableRowAction {
-    None,
-    Select,
-    Deselect,
 }
 
 // ── Main render ──────────────────────────────────────────────────────
@@ -252,7 +115,13 @@ pub fn render(
     // ── Delete confirmation modal ────────────────────────────────
     if let Some((ref hash, ref display_name)) = state.confirm_remove.clone() {
         let msg = format!("{} \"{}\"?", lang::t("confirm.delete_core", lang), display_name);
-        if let Some(confirmed) = confirm_dialog(ui.ctx(), lang::t("confirm.delete_core", lang), &msg) {
+        if let Some(confirmed) = confirm_dialog(
+            ui.ctx(),
+            lang::t("confirm.delete_core", lang),
+            &msg,
+            lang::t("action.yes_delete", lang),
+            lang::t("action.cancel", lang),
+        ) {
             if confirmed {
                 handle.try_send(Command::RemoveCore { hash: hash.clone() });
             }
