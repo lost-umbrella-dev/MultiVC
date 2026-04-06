@@ -18,7 +18,7 @@ pub fn render(ui: &mut egui::Ui, current_tab: &mut Tab, downloads: &DownloadTrac
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             // GitHub icon button
             let github_image = egui::Image::from_bytes("bytes://github.svg", icons::GITHUB.as_bytes())
-                .fit_to_exact_size(egui::vec2(18.0, 18.0))
+                .fit_to_exact_size(egui::vec2(22.0, 22.0))
                 .tint(egui::Color32::WHITE);
             let github_button = egui::Button::image(github_image).frame(false);
             if ui
