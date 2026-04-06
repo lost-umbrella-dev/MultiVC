@@ -402,11 +402,12 @@ impl eframe::App for App {
 
             // Check for DLL changes every frame (cheap: just stat the file)
             if let Some(ref hot) = self.hot_lib
-                && hot.needs_reload() {
-                    tracing::info!("Hot-reload: DLL changed, reloading...");
-                    self.hot_lib = None; // drop old library first
-                    self.hot_lib = HotLib::load();
-                }
+                && hot.needs_reload()
+            {
+                tracing::info!("Hot-reload: DLL changed, reloading...");
+                self.hot_lib = None; // drop old library first
+                self.hot_lib = HotLib::load();
+            }
         }
 
         // Drain events

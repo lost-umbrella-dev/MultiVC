@@ -74,7 +74,10 @@ async fn test_list_all_releases() {
 
             let first_item = &items[0];
             assert!(!first_item.name.is_empty(), "Имя релиза не должно быть пустым");
-            assert!(!first_item.version.is_empty(), "Версия не должна быть пустой");
+            assert!(
+                !first_item.version.to_string().is_empty(),
+                "Версия не должна быть пустой"
+            );
             assert!(!first_item.url.is_empty(), "URL релиза не должен быть пустым");
             assert!(first_item.size > 0, "Размер релиза должен быть больше нуля");
         },
@@ -101,7 +104,7 @@ async fn test_list_releases_with_version_filter() {
 
     let result = client
         .list(GitHubListOptions {
-            search_version: vec![first_version.parse().expect("failed to parse version")],
+            search_version: vec![first_version.clone()],
         })
         .await;
 
@@ -116,7 +119,7 @@ async fn test_list_releases_with_version_filter() {
 
             for item in &items {
                 assert!(
-                    item.version.contains(&first_version),
+                    item.version.to_string().contains(&first_version.to_string()),
                     "Версия {} должна содержать {}",
                     item.version,
                     first_version
@@ -146,7 +149,7 @@ async fn test_get_item_by_version() {
 
     let result = client
         .get(GitHubGetOptions {
-            version: first_version.parse().expect("failed to parse version"),
+            version: first_version.clone(),
         })
         .await;
 

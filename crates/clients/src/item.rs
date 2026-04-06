@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::hash::Hash;
+use crate::{hash::Hash, version::Version};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Item {
@@ -10,7 +10,7 @@ pub struct Item {
     ///
     /// example version: "1.1.1",
     /// auto bump: "^1.1" => auto update for any "1.1.x" versions
-    pub version: String,
+    pub version: Version,
     /// Download url
     pub url: String,
     /// Ссылка на source zipball (GitHub).
@@ -39,5 +39,5 @@ pub struct ItemDependence {
     ///
     /// example version: "1.1.1",
     /// auto bump: "^1.1" => auto update for any "1.1.x" versions
-    pub version: String,
+    pub version: Version,
 }

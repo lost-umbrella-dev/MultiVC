@@ -101,15 +101,21 @@ impl GithubClient {
             })
             .filter_map(|x| {
                 let asset = x.assets.iter().find(|a| asset_matches_current_system(&a.name));
-                asset.map(|a| Item {
-                    name: a.name.to_owned(),
-                    version: x.tag_name.to_owned(),
-                    url: a.browser_download_url.to_owned(),
-                    hash: a.digest.to_owned(),
-                    size: a.size,
-                    dependencies: None,
-                    supported_engine: None,
-                    zipball_url: Some(x.zipball_url.to_owned()),
+                asset.map(|a| {
+                    let version = x
+                        .tag_name
+                        .parse()
+                        .unwrap_or_else(|_| crate::version::Version::new(None, 0, 0, 0, Some(x.tag_name.to_owned())));
+                    Item {
+                        name: a.name.to_owned(),
+                        version,
+                        url: a.browser_download_url.to_owned(),
+                        hash: a.digest.to_owned(),
+                        size: a.size,
+                        dependencies: None,
+                        supported_engine: None,
+                        zipball_url: Some(x.zipball_url.to_owned()),
+                    }
                 })
             })
             .collect())

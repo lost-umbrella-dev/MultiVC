@@ -17,7 +17,7 @@
 use tokio::sync::mpsc;
 
 use crate::Composer;
-use crate::message::{Command, CoreDependentsMap, CoresInstalledResult, Event, InstancesSnapshot};
+use crate::message::{Command, CoreDependentsMap, CoresInstalledResult, Event, InstancesSnapshot, ItemsSnapshot};
 
 // ── Handles ──────────────────────────────────────────────────────────
 
@@ -156,11 +156,14 @@ impl ComposerWorker {
 
     /// Снимок текущих ядер из lock (для отправки в UI).
     fn cores_snapshot(&self) -> crate::message::ItemsSnapshot {
-        self.composer
+        let mut a = self
+            .composer
             .cores_items()
             .iter()
             .map(|entry| (entry.key().clone(), entry.value().clone()))
-            .collect()
+            .collect::<ItemsSnapshot>();
+        a.sort_by(|x, y| y.1.item.version.cmp(&x.1.item.version));
+        a
     }
 
     /// Снимок текущих инстансов из lock (для отправки в UI).
@@ -334,6 +337,10 @@ impl ComposerWorker {
                     .core
                     .list(search_version)
                     .await
+                    .map(|mut items| {
+                        items.sort_by(|a, b| b.version.cmp(&a.version));
+                        items
+                    })
                     .map_err(Into::into);
                 Event::CoresFetched(result)
             },

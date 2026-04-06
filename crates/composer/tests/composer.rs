@@ -83,7 +83,7 @@ async fn save_and_load_roundtrip() {
     // 8. Проверяем поля загруженного элемента
     let loaded_item = loaded.cores_items().get(&hash).expect("элемент должен существовать");
     assert_eq!(loaded_item.item.name, "test-core");
-    assert_eq!(loaded_item.item.version, "1.0.0");
+    assert_eq!(loaded_item.item.version.to_string(), "1.0.0");
 
     // 9. Восстанавливаем исходную рабочую директорию
     std::env::set_current_dir(&original_dir).expect("не удалось восстановить cwd");

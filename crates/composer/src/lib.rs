@@ -146,7 +146,7 @@ impl Composer {
     ///
     /// Возвращает `None` если ядро с таким хэшем не найдено в lock.
     pub fn resolve_core_version(&self, hash: &Hash) -> Option<String> {
-        self.cores.items().get(hash).map(|entry| entry.item.version.clone())
+        self.cores.items().get(hash).map(|entry| entry.item.version.to_string())
     }
 
     /// Возвращает список всех ядер с информацией о зависимых инстансах.
@@ -176,7 +176,7 @@ impl Composer {
             result.push(CoreInfo {
                 hash,
                 name: lock_item.item.name.clone(),
-                version: lock_item.item.version.clone(),
+                version: lock_item.item.version.to_string(),
                 size: lock_item.item.size,
                 timestamp: lock_item.timestamp,
                 dependents,

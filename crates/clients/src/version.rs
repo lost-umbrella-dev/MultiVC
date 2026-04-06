@@ -71,6 +71,23 @@ impl fmt::Display for Version {
     }
 }
 
+// ── Ord ─────────────────────────────────────────────────────────────
+
+impl PartialOrd for Version {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Version {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.major
+            .cmp(&other.major)
+            .then(self.minor.cmp(&other.minor))
+            .then(self.patch.cmp(&other.patch))
+    }
+}
+
 // ── FromStr ──────────────────────────────────────────────────────────
 
 impl FromStr for Version {

@@ -189,13 +189,12 @@ async fn load_composer() -> Result<Composer, Box<dyn std::error::Error>> {
 fn find_cores_by_query(cores: &LockMap, query: &str) -> Vec<(Hash, LockItem)> {
     // 1. Пробуем распарсить как версию
     if let Ok(version) = query.parse::<Version>() {
-        let prefixed = version.clone().with_default_prefix().to_string();
-        let literal = version.to_string();
+        let prefixed = version.clone().with_default_prefix();
         let matches: Vec<_> = cores
             .iter()
             .filter(|entry| {
                 let v = &entry.value().item.version;
-                *v == prefixed || *v == literal
+                *v == prefixed || *v == version
             })
             .map(|entry| (entry.key().clone(), entry.value().clone()))
             .collect();

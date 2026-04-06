@@ -33,15 +33,6 @@ impl SortDir {
     }
 }
 
-/// Which column is active for sorting in the cores tab.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum CoresSortColumn {
-    #[default]
-    None,
-    Name,
-    Version,
-}
-
 /// Which column is active for sorting in the instances tab.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InstancesSortColumn {
@@ -161,14 +152,6 @@ pub struct CoresTabState {
     /// Маппинг: хэш ядра → список имён инстансов, использующих это ядро.
     /// Заполняется при загрузке конфигов инстансов.
     pub core_dependents: HashMap<Hash, Vec<String>>,
-    /// Sort column for installed cores.
-    pub installed_sort_col: CoresSortColumn,
-    /// Sort direction for installed cores.
-    pub installed_sort_dir: SortDir,
-    /// Sort column for available cores.
-    pub available_sort_col: CoresSortColumn,
-    /// Sort direction for available cores.
-    pub available_sort_dir: SortDir,
 }
 
 // ── Instances tab ────────────────────────────────────────────────────

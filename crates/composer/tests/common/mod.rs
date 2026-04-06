@@ -43,7 +43,7 @@ pub fn init_test_tracing() -> DefaultGuard {
 pub fn make_item(name: &str, version: &str) -> Item {
     Item {
         name: name.to_owned(),
-        version: version.to_owned(),
+        version: version.parse().expect("invalid test version"),
         url: format!("https://example.com/{name}/{version}"),
         zipball_url: None,
         hash: None,
