@@ -229,7 +229,6 @@ pub fn render(
 
     // ── Validation results ───────────────────────────────────────
     if !state.validation.is_empty() {
-        ui.separator();
         ui.heading("Validation results");
         for reason in &state.validation {
             match reason {
@@ -246,8 +245,6 @@ pub fn render(
             ui.label("No instances. Press \"+\" to create one.");
         });
     } else if !state.installed.is_empty() {
-        ui.separator();
-
         // Column header
         ui.horizontal(|ui| {
             let actions_width = 100.0;

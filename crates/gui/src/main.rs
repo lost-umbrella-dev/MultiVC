@@ -5,6 +5,7 @@
 
 mod app;
 mod download_tracker;
+mod icons;
 mod state;
 mod toasts;
 mod views;
@@ -88,7 +89,10 @@ fn main() -> eframe::Result<()> {
     let result = eframe::run_native(
         "MultiVC",
         native_options,
-        Box::new(move |_cc| Ok(Box::new(App::new(handle, rt_for_app)))),
+        Box::new(move |cc| {
+            egui_extras::install_image_loaders(&cc.egui_ctx);
+            Ok(Box::new(App::new(handle, rt_for_app)))
+        }),
     );
 
     // После закрытия окна (App::on_exit уже отправил Command::Shutdown)

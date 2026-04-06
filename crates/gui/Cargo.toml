@@ -21,6 +21,7 @@ tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "chron
 tracing-tree = "0.3"
 open = "5"
 toml = "0.8"
+egui_extras = { version = "0.34.1", features = ["svg"] }
 
 [lints]
 workspace = true
