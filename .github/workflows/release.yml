@@ -1,0 +1,118 @@
+name: Release
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CLICOLOR: 1
+  COLUMNS: 130
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            archive-ext: zip
+          - target: aarch64-pc-windows-msvc
+            runner: windows-latest
+            archive-ext: zip
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            archive-ext: tar.gz
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            archive-ext: tar.gz
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            archive-ext: tar.gz
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang mold \
+            libwayland-dev libxkbcommon-dev \
+            libgl1-mesa-dev libx11-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }} -p cli -p gui
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dir = "target/${{ matrix.target }}/release"
+          Compress-Archive -Path "$dir/cli.exe","$dir/gui.exe" `
+            -DestinationPath "multivc-${{ matrix.target }}.zip"
+
+      - name: Package archive (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          tar czf multivc-${{ matrix.target }}.tar.gz \
+            -C target/${{ matrix.target }}/release \
+            cli gui
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: multivc-${{ matrix.target }}
+          path: multivc-${{ matrix.target }}.${{ matrix.archive-ext }}
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "MultiVC ${{ github.ref_name }}" \
+            --generate-notes \
+            artifacts/*

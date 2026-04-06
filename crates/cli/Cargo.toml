@@ -11,7 +11,7 @@ categories.workspace = true
 readme.workspace = true
 
 [[bin]]
-name = "multivc"
+name = "cli"
 path = "src/main.rs"
 
 [dependencies]
