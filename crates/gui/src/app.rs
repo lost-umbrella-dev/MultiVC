@@ -341,6 +341,7 @@ impl eframe::App for App {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         tracing::info!("sending Shutdown to worker");
         self.handle.try_send(Command::Shutdown);
+        let _ = self.state.settings.lock.save();
     }
 }
 

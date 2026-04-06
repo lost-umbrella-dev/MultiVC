@@ -16,6 +16,7 @@ clients.workspace = true
 eframe = { version = "0.34", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
 egui-toast = "0.20"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync"] }
+chrono = { workspace = true, features = ["serde", "clock"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter", "chrono"] }
 tracing-tree = "0.3"
@@ -23,6 +24,7 @@ open = "5"
 toml = "0.8"
 egui_extras = { version = "0.34.1", features = ["svg"] }
 resvg = "0.45"
+serde = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true

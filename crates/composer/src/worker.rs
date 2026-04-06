@@ -373,6 +373,15 @@ impl ComposerWorker {
                                 // Store child for potential kill later
                                 self.running.insert(name.clone(), child);
 
+                                // Update last_launch timestamp in the instances lock
+                                if let Some(mut entry) = self.composer.instances.items().get_mut(&name) {
+                                    entry.last_launch = Some(chrono::Utc::now());
+                                }
+                                // Persist the updated lock asynchronously (best-effort)
+                                if let Err(e) = self.composer.instances.save().await {
+                                    tracing::warn!(error = %e, "failed to save instances lock after launch");
+                                }
+
                                 Event::InstanceLaunched { name, result: Ok(pid) }
                             },
                             Err(e) => {

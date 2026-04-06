@@ -1344,6 +1344,7 @@ dependencies = [
 name = "gui"
 version = "0.0.0"
 dependencies = [
+ "chrono",
  "clients",
  "composer",
  "eframe",
@@ -1351,6 +1352,7 @@ dependencies = [
  "egui_extras",
  "open",
  "resvg",
+ "serde",
  "tokio",
  "toml 0.8.23",
  "tracing",

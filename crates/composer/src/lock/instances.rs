@@ -16,6 +16,9 @@ pub struct InstancesItem {
     pub icon: String,
     /// Баннер (base64)
     pub banner: String,
+    /// Время последнего запуска инстанса.
+    #[serde(default)]
+    pub last_launch: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Причина невалидности инстанса.

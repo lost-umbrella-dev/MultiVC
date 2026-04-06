@@ -12,9 +12,23 @@ use composer::message::Command;
 use composer::worker::WorkerHandle;
 
 use crate::icons;
-use crate::state::CoresTabState;
+use crate::state::{CoresSortColumn, CoresTabState, SortDir};
 use crate::toasts;
 use crate::widgets::{ProgressRing, confirm_dialog, icon_button, striped_frame, tab_toolbar};
+
+// ── Helper functions ─────────────────────────────────────────────────
+
+/// Compares two semantic version strings numerically.
+/// Strips leading 'v' and splits on '.' to compare as integers.
+fn semver_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    let parse = |s: &str| -> Vec<u64> {
+        s.trim_start_matches('v')
+            .split('.')
+            .map(|seg| seg.parse::<u64>().unwrap_or(0))
+            .collect()
+    };
+    parse(a).cmp(&parse(b))
+}
 
 /// Результат рендера — действия, которые должен обработать App.
 pub struct CoresTabAction {
@@ -249,19 +263,68 @@ pub fn render(
             let name_width =
                 (ui.available_width() - version_width - hash_width - actions_width - ui.spacing().item_spacing.x * 4.0)
                     .max(80.0);
+            let row_height = ui.text_style_height(&egui::TextStyle::Body);
 
+            // Name header
+            let is_active_name = state.installed_sort_col == CoresSortColumn::Name;
+            let indicator_name = match (is_active_name, state.installed_sort_dir) {
+                (true, SortDir::Ascending) => " ▲",
+                (true, SortDir::Descending) => " ▼",
+                _ => "",
+            };
+            let label_name = format!("Name{}", indicator_name);
+
+            if ui
+                .add_sized(
+                    [name_width, row_height],
+                    egui::Button::new(egui::RichText::new(label_name).strong()).frame(false),
+                )
+                .clicked()
+            {
+                if state.installed_sort_col == CoresSortColumn::Name {
+                    state.installed_sort_dir = state.installed_sort_dir.cycle();
+                    if state.installed_sort_dir == SortDir::None {
+                        state.installed_sort_col = CoresSortColumn::None;
+                    }
+                } else {
+                    state.installed_sort_col = CoresSortColumn::Name;
+                    state.installed_sort_dir = SortDir::Ascending;
+                }
+            }
+
+            // Version header
+            let is_active_version = state.installed_sort_col == CoresSortColumn::Version;
+            let indicator_version = match (is_active_version, state.installed_sort_dir) {
+                (true, SortDir::Ascending) => " ▲",
+                (true, SortDir::Descending) => " ▼",
+                _ => "",
+            };
+            let label_version = format!("Version{}", indicator_version);
+
+            if ui
+                .add_sized(
+                    [version_width, row_height],
+                    egui::Button::new(egui::RichText::new(label_version).strong()).frame(false),
+                )
+                .clicked()
+            {
+                if state.installed_sort_col == CoresSortColumn::Version {
+                    state.installed_sort_dir = state.installed_sort_dir.cycle();
+                    if state.installed_sort_dir == SortDir::None {
+                        state.installed_sort_col = CoresSortColumn::None;
+                    }
+                } else {
+                    state.installed_sort_col = CoresSortColumn::Version;
+                    state.installed_sort_dir = SortDir::Ascending;
+                }
+            }
+
+            // Hash header (not sortable)
             ui.add_sized(
-                [name_width, ui.available_height()],
-                egui::Label::new(egui::RichText::new("Name").strong()),
-            );
-            ui.add_sized(
-                [version_width, ui.available_height()],
-                egui::Label::new(egui::RichText::new("Version").strong()),
-            );
-            ui.add_sized(
-                [hash_width, ui.available_height()],
+                [hash_width, row_height],
                 egui::Label::new(egui::RichText::new("Hash").strong()),
             );
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(egui::RichText::new("Actions").strong());
             });
@@ -271,6 +334,29 @@ pub fn render(
         let max_rows = 10;
         let max_height = row_height * max_rows as f32;
 
+        // Apply sorting
+        let mut sorted_indices: Vec<usize> = (0..state.installed.len()).collect();
+
+        match (state.installed_sort_col, state.installed_sort_dir) {
+            (CoresSortColumn::Version, SortDir::Ascending) => {
+                sorted_indices.sort_by(|&a, &b| {
+                    semver_cmp(&state.installed[a].1.item.version, &state.installed[b].1.item.version)
+                });
+            },
+            (CoresSortColumn::Version, SortDir::Descending) => {
+                sorted_indices.sort_by(|&a, &b| {
+                    semver_cmp(&state.installed[b].1.item.version, &state.installed[a].1.item.version)
+                });
+            },
+            (CoresSortColumn::Name, SortDir::Ascending) => {
+                sorted_indices.sort_by(|&a, &b| state.installed[a].1.item.name.cmp(&state.installed[b].1.item.name));
+            },
+            (CoresSortColumn::Name, SortDir::Descending) => {
+                sorted_indices.sort_by(|&a, &b| state.installed[b].1.item.name.cmp(&state.installed[a].1.item.name));
+            },
+            _ => {}, // No sort: use insertion order
+        }
+
         egui::ScrollArea::vertical()
             .id_salt("installed_cores_scroll")
             .max_height(max_height)
@@ -279,7 +365,8 @@ pub fn render(
 
                 let mut request_remove: Option<(Hash, String)> = None;
 
-                for (idx, (hash, lock_item)) in state.installed.iter().enumerate() {
+                for (row_idx, &idx) in sorted_indices.iter().enumerate() {
+                    let (hash, lock_item) = &state.installed[idx];
                     let hash_str = hash.to_string();
                     let short = if hash_str.len() > 20 {
                         format!("{}...", &hash_str[..20])
@@ -296,7 +383,7 @@ pub fn render(
                         &short,
                         &hash_str,
                         dependents,
-                        idx % 2 == 1,
+                        row_idx % 2 == 1,
                     );
 
                     if row_actions.delete && !global_busy {
@@ -350,31 +437,99 @@ pub fn render(
             let name_width =
                 (ui.available_width() - version_width - size_width - status_width - ui.spacing().item_spacing.x * 4.0)
                     .max(80.0);
+            let row_height = ui.text_style_height(&egui::TextStyle::Body);
 
+            // Name header
+            let is_active_name = state.available_sort_col == CoresSortColumn::Name;
+            let indicator_name = match (is_active_name, state.available_sort_dir) {
+                (true, SortDir::Ascending) => " ▲",
+                (true, SortDir::Descending) => " ▼",
+                _ => "",
+            };
+            let label_name = format!("Name{}", indicator_name);
+
+            if ui
+                .add_sized(
+                    [name_width, row_height],
+                    egui::Button::new(egui::RichText::new(label_name).strong()).frame(false),
+                )
+                .clicked()
+            {
+                if state.available_sort_col == CoresSortColumn::Name {
+                    state.available_sort_dir = state.available_sort_dir.cycle();
+                    if state.available_sort_dir == SortDir::None {
+                        state.available_sort_col = CoresSortColumn::None;
+                    }
+                } else {
+                    state.available_sort_col = CoresSortColumn::Name;
+                    state.available_sort_dir = SortDir::Ascending;
+                }
+            }
+
+            // Version header
+            let is_active_version = state.available_sort_col == CoresSortColumn::Version;
+            let indicator_version = match (is_active_version, state.available_sort_dir) {
+                (true, SortDir::Ascending) => " ▲",
+                (true, SortDir::Descending) => " ▼",
+                _ => "",
+            };
+            let label_version = format!("Version{}", indicator_version);
+
+            if ui
+                .add_sized(
+                    [version_width, row_height],
+                    egui::Button::new(egui::RichText::new(label_version).strong()).frame(false),
+                )
+                .clicked()
+            {
+                if state.available_sort_col == CoresSortColumn::Version {
+                    state.available_sort_dir = state.available_sort_dir.cycle();
+                    if state.available_sort_dir == SortDir::None {
+                        state.available_sort_col = CoresSortColumn::None;
+                    }
+                } else {
+                    state.available_sort_col = CoresSortColumn::Version;
+                    state.available_sort_dir = SortDir::Ascending;
+                }
+            }
+
+            // Size header (not sortable)
             ui.add_sized(
-                [name_width, ui.available_height()],
-                egui::Label::new(egui::RichText::new("Name").strong()),
-            );
-            ui.add_sized(
-                [version_width, ui.available_height()],
-                egui::Label::new(egui::RichText::new("Version").strong()),
-            );
-            ui.add_sized(
-                [size_width, ui.available_height()],
+                [size_width, row_height],
                 egui::Label::new(egui::RichText::new("Size").strong()),
             );
             // Status header (empty — checkboxes/icons are self-explanatory)
-            ui.add_sized([status_width, ui.available_height()], egui::Label::new(""));
+            ui.add_sized([status_width, row_height], egui::Label::new(""));
         });
 
         let installed_names: HashSet<&str> = state.installed.iter().map(|(_, li)| li.item.name.as_str()).collect();
+
+        // Apply sorting to available cores
+        let mut sorted_indices: Vec<usize> = (0..state.available.len()).collect();
+
+        match (state.available_sort_col, state.available_sort_dir) {
+            (CoresSortColumn::Version, SortDir::Ascending) => {
+                sorted_indices.sort_by(|&a, &b| semver_cmp(&state.available[a].version, &state.available[b].version));
+            },
+            (CoresSortColumn::Version, SortDir::Descending) => {
+                sorted_indices.sort_by(|&a, &b| semver_cmp(&state.available[b].version, &state.available[a].version));
+            },
+            (CoresSortColumn::Name, SortDir::Ascending) => {
+                sorted_indices.sort_by(|&a, &b| state.available[a].name.cmp(&state.available[b].name));
+            },
+            (CoresSortColumn::Name, SortDir::Descending) => {
+                sorted_indices.sort_by(|&a, &b| state.available[b].name.cmp(&state.available[a].name));
+            },
+            _ => {}, // No sort: use insertion order
+        }
 
         egui::ScrollArea::vertical()
             .id_salt("available_cores_scroll")
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
 
-                for (idx, item) in state.available.iter().enumerate() {
+                for (row_idx, &idx) in sorted_indices.iter().enumerate() {
+                    let item = &state.available[idx];
                     let is_downloading = state.downloads.is_active(item);
                     let is_installed = installed_names.contains(item.name.as_str());
                     let is_selected = state
@@ -395,7 +550,7 @@ pub fn render(
                         },
                         is_installed,
                         is_selected,
-                        idx % 2 == 1,
+                        row_idx % 2 == 1,
                     );
 
                     match row_action {

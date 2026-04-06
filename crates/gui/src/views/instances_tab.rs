@@ -11,9 +11,9 @@ use composer::message::Command;
 use composer::worker::WorkerHandle;
 
 use crate::icons;
-use crate::state::{InstanceForm, InstancesTabState};
+use crate::state::{InstanceForm, InstancesSortColumn, InstancesTabState, SortDir};
 use crate::toasts;
-use crate::widgets::{confirm_dialog, form_row, icon_button, striped_frame, tab_toolbar};
+use crate::widgets::{confirm_dialog, form_row, icon_button, open_folder, striped_frame, tab_toolbar};
 
 // ── Row helpers ──────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ struct InstanceRowActions {
 fn instance_row(
     ui: &mut egui::Ui,
     name: &str,
-    _meta: &InstancesItem,
+    meta: &InstancesItem,
     is_busy: bool,
     is_running: bool,
     striped_bg: bool,
@@ -41,10 +41,22 @@ fn instance_row(
     frame.show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
+            let last_launch_width = 140.0;
             let actions_width = 100.0;
-            let name_width = (ui.available_width() - actions_width - ui.spacing().item_spacing.x).max(80.0);
+            let name_width =
+                (ui.available_width() - last_launch_width - actions_width - ui.spacing().item_spacing.x * 2.0)
+                    .max(80.0);
 
             ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
+
+            let last_launch_str = match meta.last_launch {
+                Some(dt) => dt.format("%Y-%m-%d %H:%M").to_string(),
+                None => "—".to_owned(),
+            };
+            ui.add_sized(
+                [last_launch_width, ui.available_height()],
+                egui::Label::new(&last_launch_str).truncate(),
+            );
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // Delete (right-most) — disabled when running
@@ -232,18 +244,85 @@ pub fn render(
             ui.label("No instances. Press \"+\" to create one.");
         });
     } else if !state.installed.is_empty() {
-        // Column header
+        // Column header with sorting
         ui.horizontal(|ui| {
+            let last_launch_width = 140.0;
             let actions_width = 100.0;
-            let name_width = (ui.available_width() - actions_width - ui.spacing().item_spacing.x).max(80.0);
+            let name_width = (ui.available_width() - last_launch_width - actions_width - ui.spacing().item_spacing.x * 2.0).max(80.0);
 
-            ui.add_sized(
-                [name_width, ui.available_height()],
-                egui::Label::new(egui::RichText::new("Name").strong()),
-            );
+            // Name header
+            let is_active_name = state.sort_col == InstancesSortColumn::Name;
+            let indicator_name = match (is_active_name, state.sort_dir) {
+                (true, SortDir::Ascending) => " ▲",
+                (true, SortDir::Descending) => " ▼",
+                _ => "",
+            };
+            let label_name = format!("Name{}", indicator_name);
+
+            if ui.add_sized([name_width, ui.available_height()],
+                egui::Button::new(egui::RichText::new(label_name).strong()).frame(false)
+            ).clicked() {
+                if state.sort_col == InstancesSortColumn::Name {
+                    state.sort_dir = state.sort_dir.cycle();
+                    if state.sort_dir == SortDir::None {
+                        state.sort_col = InstancesSortColumn::default();
+                    }
+                } else {
+                    state.sort_col = InstancesSortColumn::Name;
+                    state.sort_dir = SortDir::Ascending;
+                }
+            }
+
+            // Last Launch header
+            let is_active_launch = state.sort_col == InstancesSortColumn::LastLaunch;
+            let indicator_launch = match (is_active_launch, state.sort_dir) {
+                (true, SortDir::Ascending) => " ▲",
+                (true, SortDir::Descending) => " ▼",
+                _ => "",
+            };
+            let label_launch = format!("Last Launch{}", indicator_launch);
+
+            if ui.add_sized([last_launch_width, ui.available_height()],
+                egui::Button::new(egui::RichText::new(label_launch).strong()).frame(false)
+            ).clicked() {
+                if state.sort_col == InstancesSortColumn::LastLaunch {
+                    state.sort_dir = state.sort_dir.cycle();
+                    if state.sort_dir == SortDir::None {
+                        state.sort_col = InstancesSortColumn::default();
+                    }
+                } else {
+                    state.sort_col = InstancesSortColumn::LastLaunch;
+                    state.sort_dir = SortDir::Descending;  // most recent first by default
+                }
+            }
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(egui::RichText::new("Actions").strong());
             });
+        });
+
+        // Apply sorting
+        let mut sorted_indices: Vec<usize> = (0..state.installed.len()).collect();
+
+        sorted_indices.sort_by(|&a, &b| {
+            let (name_a, item_a) = &state.installed[a];
+            let (name_b, item_b) = &state.installed[b];
+
+            match (state.sort_col, state.sort_dir) {
+                (InstancesSortColumn::LastLaunch, SortDir::Descending) => {
+                    item_b.last_launch.cmp(&item_a.last_launch)  // reversed for descending
+                }
+                (InstancesSortColumn::LastLaunch, SortDir::Ascending) => {
+                    item_a.last_launch.cmp(&item_b.last_launch)
+                }
+                (InstancesSortColumn::Name, SortDir::Ascending) => {
+                    name_a.cmp(name_b)
+                }
+                (InstancesSortColumn::Name, SortDir::Descending) => {
+                    name_b.cmp(name_a)
+                }
+                _ => std::cmp::Ordering::Equal,
+            }
         });
 
         // Scrollable rows — fills all remaining vertical space
@@ -254,11 +333,12 @@ pub fn render(
 
                 let mut to_remove: Option<String> = None;
 
-                for (idx, (name, meta)) in state.installed.iter().enumerate() {
+                for (display_idx, &idx) in sorted_indices.iter().enumerate() {
+                    let (name, meta) = &state.installed[idx];
                     let is_busy = state.busy || state.busy_instances.contains(name);
                     let is_running = state.running_instances.contains_key(name);
 
-                    let row_actions = instance_row(ui, name, meta, is_busy, is_running, idx % 2 == 1);
+                    let row_actions = instance_row(ui, name, meta, is_busy, is_running, display_idx % 2 == 1);
 
                     if row_actions.launch {
                         handle.try_send(Command::LaunchInstance { name: name.clone() });
@@ -270,13 +350,7 @@ pub fn render(
 
                     if row_actions.open_folder {
                         let folder = std::path::Path::new("instances").join(name);
-                        if folder.exists() {
-                            if let Err(e) = open::that(&folder) {
-                                toasts::error(toasts_out, format!("Failed to open folder: {e}"));
-                            }
-                        } else {
-                            toasts::warning(toasts_out, format!("Folder does not exist: {}", folder.display()));
-                        }
+                        open_folder(&folder, toasts_out);
                     }
 
                     if row_actions.delete {
@@ -336,10 +410,8 @@ pub fn render(
                             "Open in external editor"
                         })
                         .clicked()
-                        && log_path.exists()
-                        && let Err(e) = open::that(&log_path)
                     {
-                        toasts::error(toasts_out, format!("Failed to open log: {e}"));
+                        open_folder(&log_path, toasts_out);
                     }
                 });
 

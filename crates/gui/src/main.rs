@@ -7,6 +7,8 @@
 mod app;
 mod download_tracker;
 mod icons;
+mod lang;
+mod settings;
 mod state;
 mod toasts;
 mod views;

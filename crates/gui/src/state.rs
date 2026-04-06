@@ -11,6 +11,63 @@ use composer::lock::instances::{InstanceValidateReason, InstancesItem};
 
 use crate::download_tracker::DownloadTracker;
 
+// ── Sort state ───────────────────────────────────────────────────────
+
+/// Sort direction for table columns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SortDir {
+    #[default]
+    None, // default/insertion order
+    Ascending,
+    Descending,
+}
+
+impl SortDir {
+    /// Cycles: None → Ascending → Descending → None
+    pub fn cycle(self) -> Self {
+        match self {
+            Self::None => Self::Ascending,
+            Self::Ascending => Self::Descending,
+            Self::Descending => Self::None,
+        }
+    }
+}
+
+/// Which column is active for sorting in the cores tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CoresSortColumn {
+    #[default]
+    None,
+    Name,
+    Version,
+}
+
+/// Which column is active for sorting in the instances tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum InstancesSortColumn {
+    #[default]
+    LastLaunch, // default sort
+    Name,
+}
+
+// ── Settings state ───────────────────────────────────────────────────
+
+/// Settings state — persisted settings and modal state.
+pub struct SettingsState {
+    pub lock: crate::settings::SettingsLock,
+    /// Whether the settings modal is currently open.
+    pub open: bool,
+}
+
+impl Default for SettingsState {
+    fn default() -> Self {
+        Self {
+            lock: crate::settings::SettingsLock::load(),
+            open: false,
+        }
+    }
+}
+
 // ── Root state ───────────────────────────────────────────────────────
 
 /// Корневое UI-состояние, обновляемое из `Event`-ов.
@@ -20,6 +77,8 @@ pub struct UiState {
     pub cores: CoresTabState,
     /// Данные вкладки «Инстансы».
     pub instances: InstancesTabState,
+    /// Settings state.
+    pub settings: SettingsState,
 }
 
 // ── Cores tab ────────────────────────────────────────────────────────
@@ -48,6 +107,14 @@ pub struct CoresTabState {
     /// Маппинг: хэш ядра → список имён инстансов, использующих это ядро.
     /// Заполняется при загрузке конфигов инстансов.
     pub core_dependents: HashMap<Hash, Vec<String>>,
+    /// Sort column for installed cores.
+    pub installed_sort_col: CoresSortColumn,
+    /// Sort direction for installed cores.
+    pub installed_sort_dir: SortDir,
+    /// Sort column for available cores.
+    pub available_sort_col: CoresSortColumn,
+    /// Sort direction for available cores.
+    pub available_sort_dir: SortDir,
 }
 
 // ── Instances tab ────────────────────────────────────────────────────
@@ -76,6 +143,29 @@ pub struct InstancesTabState {
     pub running_instances: HashMap<String, u32>,
     /// Имя инстанса, чей лог сейчас открыт в модалке.
     pub log_viewer: Option<String>,
+    /// Sort column for instances.
+    pub sort_col: InstancesSortColumn,
+    /// Sort direction for instances.
+    pub sort_dir: SortDir,
+}
+
+impl InstancesTabState {
+    fn default() -> Self {
+        Self {
+            installed: Vec::new(),
+            validation: Vec::new(),
+            create_form: None,
+            edit_form: None,
+            viewing: None,
+            busy_instances: HashSet::new(),
+            confirm_remove: None,
+            busy: false,
+            running_instances: HashMap::new(),
+            log_viewer: None,
+            sort_col: InstancesSortColumn::default(),
+            sort_dir: SortDir::Descending,
+        }
+    }
 }
 
 /// Поля формы создания / редактирования инстанса.

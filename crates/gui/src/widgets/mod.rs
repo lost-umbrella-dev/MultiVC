@@ -67,3 +67,37 @@ pub fn confirm_dialog(ctx: &egui::Context, title: &str, message: &str) -> Option
     }
     result
 }
+
+/// Opens `path` in the system file manager using the `open` crate.
+/// Shows a toast error/warning if the path does not exist or the open fails.
+pub fn open_folder(path: impl AsRef<std::path::Path>, toasts: &mut egui_toast::Toasts) {
+    let path = path.as_ref();
+    if path.exists() {
+        if let Err(e) = open::that(path) {
+            crate::toasts::error(toasts, format!("Failed to open folder: {e}"));
+        }
+    } else {
+        crate::toasts::warning(toasts, format!("Folder does not exist: {}", path.display()));
+    }
+}
+
+/// Renders a clickable folder-open button (icon only).
+/// Calls `open_folder()` on click.
+/// Returns `true` if the button was clicked.
+pub fn open_folder_button(
+    ui: &mut egui::Ui,
+    path: impl AsRef<std::path::Path>,
+    hover_text: &str,
+    toasts: &mut egui_toast::Toasts,
+) -> bool {
+    let clicked = ui
+        .add(icon_button(crate::icons::ICON_FOLDER))
+        .on_hover_text(hover_text)
+        .clicked();
+
+    if clicked {
+        open_folder(path, toasts);
+    }
+
+    clicked
+}
