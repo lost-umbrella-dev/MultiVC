@@ -228,8 +228,6 @@ pub fn render(
         });
     });
 
-    ui.separator();
-
     // ── Delete confirmation modal ────────────────────────────────
     if let Some((ref hash, ref display_name)) = state.confirm_remove.clone() {
         let mut open = true;

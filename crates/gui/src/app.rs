@@ -258,22 +258,8 @@ impl App {
             Event::CoresItems(items) => {
                 self.state.cores.installed = items;
             },
-            Event::InstancesItems(items) => {
-                // Rebuild core_dependents map by reading instance configs from disk
-                self.state.cores.core_dependents.clear();
-                for (name, _) in &items {
-                    let path = std::path::Path::new("instances").join(name).join("instance.toml");
-                    if let Ok(text) = std::fs::read_to_string(&path) {
-                        if let Ok(config) = toml::from_str::<composer::lock::instance::Instance>(&text) {
-                            self.state
-                                .cores
-                                .core_dependents
-                                .entry(config.core_version)
-                                .or_default()
-                                .push(name.clone());
-                        }
-                    }
-                }
+            Event::InstancesItems(items, core_dependents) => {
+                self.state.cores.core_dependents = core_dependents;
                 self.state.instances.installed = items;
             },
 

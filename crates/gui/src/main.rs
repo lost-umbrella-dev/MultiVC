@@ -18,6 +18,39 @@ use composer::worker::ComposerWorker;
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt};
 use tracing_tree::HierarchicalLayer;
 
+/// Рендерит LOUM SVG-иконку в `IconData` для окна приложения.
+fn loum_icon() -> Option<eframe::egui::IconData> {
+    const ICON_SIZE: u32 = 64;
+
+    let opt = resvg::usvg::Options::default();
+    let tree = resvg::usvg::Tree::from_data(icons::LOUM.as_bytes(), &opt).ok()?;
+
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(ICON_SIZE, ICON_SIZE)?;
+    let svg_size = tree.size();
+    let transform = resvg::tiny_skia::Transform::from_scale(
+        ICON_SIZE as f32 / svg_size.width(),
+        ICON_SIZE as f32 / svg_size.height(),
+    );
+    resvg::render(&tree, transform, &mut pixmap.as_mut());
+
+    // tiny_skia хранит premultiplied RGBA → нужен straight RGBA для IconData
+    let mut rgba = pixmap.take();
+    for px in rgba.chunks_exact_mut(4) {
+        let a = px[3] as f32 / 255.0;
+        if a > 0.0 {
+            px[0] = (px[0] as f32 / a).min(255.0) as u8;
+            px[1] = (px[1] as f32 / a).min(255.0) as u8;
+            px[2] = (px[2] as f32 / a).min(255.0) as u8;
+        }
+    }
+
+    Some(eframe::egui::IconData {
+        rgba,
+        width: ICON_SIZE,
+        height: ICON_SIZE,
+    })
+}
+
 fn main() -> eframe::Result<()> {
     // ── Tracing ──────────────────────────────────────────────────
     let filter = EnvFilter::try_from_default_env()
@@ -72,10 +105,15 @@ fn main() -> eframe::Result<()> {
         .expect("не удалось запустить worker thread");
 
     // ── eframe ───────────────────────────────────────────────────
+    let mut viewport = eframe::egui::ViewportBuilder::default()
+        .with_title("MultiVC")
+        .with_inner_size([900.0, 600.0]);
+    if let Some(icon) = loum_icon() {
+        viewport = viewport.with_icon(icon);
+    }
+
     let native_options = eframe::NativeOptions {
-        viewport: eframe::egui::ViewportBuilder::default()
-            .with_title("MultiVC")
-            .with_inner_size([900.0, 600.0]),
+        viewport,
         ..Default::default()
     };
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
@@ -319,6 +320,23 @@ impl Composer {
             }
         }
         Ok(dependents)
+    }
+
+    /// Строит полную карту зависимостей: хэш ядра → список имён инстансов.
+    pub async fn core_dependents_map(&self) -> HashMap<Hash, Vec<String>> {
+        let mut map: HashMap<Hash, Vec<String>> = HashMap::new();
+        for entry in self.instances.items().iter() {
+            let name = entry.key().clone();
+            match self.get_instance(&name).await {
+                Ok(instance) => {
+                    map.entry(instance.core_version).or_default().push(name);
+                },
+                Err(e) => {
+                    tracing::warn!(instance = %name, error = %e, "failed to read instance config, skipping");
+                },
+            }
+        }
+        map
     }
 
     /// Удаляет ядро по хэшу: убирает из lock и удаляет директорию с диска.

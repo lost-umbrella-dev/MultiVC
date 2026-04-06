@@ -17,7 +17,7 @@
 use tokio::sync::mpsc;
 
 use crate::Composer;
-use crate::message::{Command, CoresInstalledResult, Event, InstancesSnapshot};
+use crate::message::{Command, CoreDependentsMap, CoresInstalledResult, Event, InstancesSnapshot};
 
 // ── Handles ──────────────────────────────────────────────────────────
 
@@ -164,12 +164,15 @@ impl ComposerWorker {
     }
 
     /// Снимок текущих инстансов из lock (для отправки в UI).
-    fn instances_snapshot(&self) -> InstancesSnapshot {
-        self.composer
+    async fn instances_snapshot(&self) -> (InstancesSnapshot, CoreDependentsMap) {
+        let items = self
+            .composer
             .instances_items()
             .iter()
             .map(|entry| (entry.key().clone(), entry.value().clone()))
-            .collect()
+            .collect();
+        let dependents = self.composer.core_dependents_map().await;
+        (items, dependents)
     }
 
     /// Checks all running instances and sends `InstanceStopped` for any that have exited.
@@ -278,7 +281,8 @@ impl ComposerWorker {
                 match self.composer.create_instance(name.clone(), config, meta).await {
                     Ok(()) => {
                         // Отправляем актуальный снимок инстансов в UI
-                        self.send(Event::InstancesItems(self.instances_snapshot())).await;
+                        let (items, deps) = self.instances_snapshot().await;
+                        self.send(Event::InstancesItems(items, deps)).await;
                         Event::InstanceCreated(Ok(name))
                     },
                     Err(e) => Event::InstanceCreated(Err(e)),
@@ -294,7 +298,8 @@ impl ComposerWorker {
                 match self.composer.edit_instance(&name, config, meta).await {
                     Ok(()) => {
                         // Отправляем актуальный снимок инстансов в UI
-                        self.send(Event::InstancesItems(self.instances_snapshot())).await;
+                        let (items, deps) = self.instances_snapshot().await;
+                        self.send(Event::InstancesItems(items, deps)).await;
                         Event::InstanceEdited(Ok(name))
                     },
                     Err(e) => Event::InstanceEdited(Err(e)),
@@ -310,7 +315,8 @@ impl ComposerWorker {
                                 tracing::error!(error = %e, "failed to save instances lock after removal");
                             }
                             // Отправляем актуальный снимок инстансов в UI
-                            self.send(Event::InstancesItems(self.instances_snapshot())).await;
+                            let (items, deps) = self.instances_snapshot().await;
+                            self.send(Event::InstancesItems(items, deps)).await;
                         }
                         Event::InstanceRemoved { name, item }
                     },
@@ -344,7 +350,10 @@ impl ComposerWorker {
             // ── Items snapshot ────────────────────────────────────
             Command::GetCoresItems => Event::CoresItems(self.cores_snapshot()),
 
-            Command::GetInstancesItems => Event::InstancesItems(self.instances_snapshot()),
+            Command::GetInstancesItems => {
+                let (items, deps) = self.instances_snapshot().await;
+                Event::InstancesItems(items, deps)
+            },
 
             // ── Launch ───────────────────────────────────────────
             Command::LaunchInstance { name } => {

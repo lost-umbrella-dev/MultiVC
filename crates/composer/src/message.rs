@@ -11,6 +11,8 @@
 //! rx.recv() ◄──────────────────── tx.send(Event)
 //! ```
 
+use std::collections::HashMap;
+
 use clients::github::GitHubListOptions;
 use clients::hash::Hash;
 use clients::item::Item;
@@ -28,6 +30,9 @@ pub type ItemsSnapshot = Vec<(Hash, LockItem)>;
 
 /// Снимок элементов lock-файла инстансов для передачи в UI.
 pub type InstancesSnapshot = Vec<(String, InstancesItem)>;
+
+/// Карта зависимостей: хэш ядра → список имён инстансов, использующих это ядро.
+pub type CoreDependentsMap = HashMap<Hash, Vec<String>>;
 
 // ── Commands (UI → Background) ──────────────────────────────────────
 
@@ -156,7 +161,7 @@ pub enum Event {
     CoresItems(ItemsSnapshot),
 
     /// Текущий список установленных инстансов.
-    InstancesItems(InstancesSnapshot),
+    InstancesItems(InstancesSnapshot, CoreDependentsMap),
 
     /// Инстанс запущен.
     InstanceLaunched {
