@@ -4,11 +4,11 @@ members = ["crates/*"]
 default-members = ["crates/cli", "crates/gui"]
 
 [workspace.package]
-version = "0.0.0"
+version = "1.0.0"
 edition = "2024"
 authors = ["TOwInOK"]
 repository = "https://github.com/lost-umbrella-dev/MultiVC"
-description = "Launcher for VoxelCore "
+description = "Launcher for VoxelCore"
 publish = false
 keywords = []
 categories = []
