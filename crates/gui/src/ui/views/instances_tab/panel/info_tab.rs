@@ -7,10 +7,10 @@ use composer::item::LockItem;
 use composer::message::Command;
 use composer::worker::WorkerHandle;
 
-use crate::icons;
-use crate::lang::{self, Lang};
-use crate::state::InstancesTabState;
-use crate::widgets::{icon_button, image_from_base64};
+use crate::ui::icons;
+use crate::ui::lang::{self, Lang};
+use crate::ui::state::InstancesTabState;
+use crate::ui::widgets::{icon_button, image_from_base64};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn render(
@@ -118,11 +118,13 @@ pub(super) fn render(
         ui.strong(format!("{}:", lang::t("info.disk_size", lang)));
         let panel = state.instance_panel.as_ref().unwrap();
         match panel.dir_size {
-            Some(bytes) => ui.label(crate::format_size(bytes)),
+            Some(bytes) => ui.label(crate::ui::format_size(bytes)),
             None => {
                 ui.label(lang::t("info.calculating", lang));
                 // Request dir size calculation
-                handle.try_send(Command::GetInstanceDirSize { name: name.to_owned() });
+                handle.try_send(Command::GetInstanceDirSize {
+                    name: name.to_owned(),
+                });
                 ui.spinner()
             },
         };

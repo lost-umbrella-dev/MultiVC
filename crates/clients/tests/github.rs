@@ -7,7 +7,8 @@ use tracing_tree::HierarchicalLayer;
 
 /// Создает тестовый клиент Github
 fn create_test_client() -> GithubClient {
-    GithubClient::new("MihailRis".to_owned(), "voxelcore".to_owned()).expect("Не удалось создать Github клиент")
+    GithubClient::new("MihailRis".to_owned(), "voxelcore".to_owned())
+        .expect("Не удалось создать Github клиент")
 }
 
 /// Инициализирует tracing для тестов.
@@ -15,8 +16,9 @@ fn create_test_client() -> GithubClient {
 /// Возвращает `DefaultGuard` — пока он жив, логи пишутся.
 /// Уровень берётся из `RUST_LOG`, по умолчанию `debug`.
 pub fn init_test_tracing() -> DefaultGuard {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper_util=warn,hyper=warn,reqwest=warn"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new("debug,h2=warn,hyper_util=warn,hyper=warn,reqwest=warn")
+    });
 
     let layer = HierarchicalLayer::new(2)
         .with_ansi(true)
@@ -65,7 +67,11 @@ async fn test_list_all_releases() {
     let _guard = init_test_tracing();
     let client = create_test_client();
 
-    let result = client.list(GitHubListOptions { search_version: vec![] }).await;
+    let result = client
+        .list(GitHubListOptions {
+            search_version: vec![],
+        })
+        .await;
 
     match result {
         Ok(items) => {
@@ -74,10 +80,7 @@ async fn test_list_all_releases() {
 
             let first_item = &items[0];
             assert!(!first_item.name.is_empty(), "Имя релиза не должно быть пустым");
-            assert!(
-                !first_item.version.to_string().is_empty(),
-                "Версия не должна быть пустой"
-            );
+            assert!(!first_item.version.to_string().is_empty(), "Версия не должна быть пустой");
             assert!(!first_item.url.is_empty(), "URL релиза не должен быть пустым");
             assert!(first_item.size > 0, "Размер релиза должен быть больше нуля");
         },
@@ -93,7 +96,11 @@ async fn test_list_releases_with_version_filter() {
     let _guard = init_test_tracing();
     let client = create_test_client();
 
-    let all_releases = client.list(GitHubListOptions { search_version: vec![] }).await;
+    let all_releases = client
+        .list(GitHubListOptions {
+            search_version: vec![],
+        })
+        .await;
 
     let first_version = match all_releases {
         Ok(items) if !items.is_empty() => items[0].version.clone(),
@@ -110,11 +117,7 @@ async fn test_list_releases_with_version_filter() {
 
     match result {
         Ok(items) => {
-            info!(
-                "Найдено {} релизов с версией, содержащей '{}'",
-                items.len(),
-                first_version
-            );
+            info!("Найдено {} релизов с версией, содержащей '{}'", items.len(), first_version);
             assert!(!items.is_empty(), "Ожидался непустой список отфильтрованных релизов");
 
             for item in &items {
@@ -138,7 +141,11 @@ async fn test_get_item_by_version() {
     let _guard = init_test_tracing();
     let client = create_test_client();
 
-    let all_releases = client.list(GitHubListOptions { search_version: vec![] }).await;
+    let all_releases = client
+        .list(GitHubListOptions {
+            search_version: vec![],
+        })
+        .await;
 
     let first_version = match all_releases {
         Ok(items) if !items.is_empty() => items[0].version.clone(),
@@ -178,7 +185,11 @@ async fn test_download_item() {
     let _guard = init_test_tracing();
     let client = create_test_client();
 
-    let result = client.list(GitHubListOptions { search_version: vec![] }).await;
+    let result = client
+        .list(GitHubListOptions {
+            search_version: vec![],
+        })
+        .await;
 
     let item = match result {
         Ok(items) if !items.is_empty() => {
@@ -199,11 +210,7 @@ async fn test_download_item() {
 
     match download_result {
         Ok(response) => {
-            info!(
-                "Успешно начато скачивание релиза {}, статус: {}",
-                item.name,
-                response.status()
-            );
+            info!("Успешно начато скачивание релиза {}, статус: {}", item.name, response.status());
 
             match response.bytes().await {
                 Ok(bytes) => {

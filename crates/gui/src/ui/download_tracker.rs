@@ -31,7 +31,11 @@ impl DownloadTracker {
     ///
     /// Creates a [`ProgressBridge`] with a repaint hook tied to `ctx`,
     /// stores it, and returns a [`DownloadRequest`] with the bridge's sink.
-    pub fn start(&mut self, item: &Item, ctx: &egui::Context) -> DownloadRequest {
+    pub fn start(
+        &mut self,
+        item: &Item,
+        ctx: &egui::Context,
+    ) -> DownloadRequest {
         let ctx_clone = ctx.clone();
         let hook = Arc::new(move || ctx_clone.request_repaint());
         let bridge = ProgressBridge::new(hook);
@@ -41,7 +45,10 @@ impl DownloadTracker {
     }
 
     /// Returns `true` if this item has an active download.
-    pub fn is_active(&self, item: &Item) -> bool {
+    pub fn is_active(
+        &self,
+        item: &Item,
+    ) -> bool {
         self.bridges.contains_key(&Self::key(item))
     }
 
@@ -49,13 +56,19 @@ impl DownloadTracker {
     ///
     /// - `None` — total unknown (indeterminate ring)
     /// - `Some(0.0..=1.0)` — determinate progress
-    pub fn fraction(&self, item: &Item) -> Option<f32> {
+    pub fn fraction(
+        &self,
+        item: &Item,
+    ) -> Option<f32> {
         self.bridges.get(&Self::key(item)).and_then(|b| b.fraction())
     }
 
     /// Removes a specific item's bridge (download finished or failed).
     #[allow(dead_code)]
-    pub fn complete(&mut self, item: &Item) {
+    pub fn complete(
+        &mut self,
+        item: &Item,
+    ) {
         self.bridges.remove(&Self::key(item));
     }
 
@@ -69,7 +82,10 @@ impl DownloadTracker {
     ///
     /// Used after `CoresInstalled` to clear only the bridges for items
     /// that were successfully installed, leaving queued downloads intact.
-    pub fn complete_installed(&mut self, installed_keys: &[String]) {
+    pub fn complete_installed(
+        &mut self,
+        installed_keys: &[String],
+    ) {
         self.bridges.retain(|key, _| !installed_keys.contains(key));
     }
 

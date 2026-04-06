@@ -29,7 +29,10 @@ pub fn create_toasts() -> Toasts {
 }
 
 /// Adds a success toast.
-pub fn success(toasts: &mut Toasts, text: impl Into<String>) {
+pub fn success(
+    toasts: &mut Toasts,
+    text: impl Into<String>,
+) {
     toasts.add(Toast {
         text: text.into().into(),
         kind: ToastKind::Success,
@@ -39,7 +42,10 @@ pub fn success(toasts: &mut Toasts, text: impl Into<String>) {
 }
 
 /// Adds an error toast.
-pub fn error(toasts: &mut Toasts, text: impl Into<String>) {
+pub fn error(
+    toasts: &mut Toasts,
+    text: impl Into<String>,
+) {
     toasts.add(Toast {
         text: text.into().into(),
         kind: ToastKind::Error,
@@ -49,7 +55,10 @@ pub fn error(toasts: &mut Toasts, text: impl Into<String>) {
 }
 
 /// Adds an info toast.
-pub fn info(toasts: &mut Toasts, text: impl Into<String>) {
+pub fn info(
+    toasts: &mut Toasts,
+    text: impl Into<String>,
+) {
     toasts.add(Toast {
         text: text.into().into(),
         kind: ToastKind::Info,
@@ -59,7 +68,10 @@ pub fn info(toasts: &mut Toasts, text: impl Into<String>) {
 }
 
 /// Adds a warning toast.
-pub fn warning(toasts: &mut Toasts, text: impl Into<String>) {
+pub fn warning(
+    toasts: &mut Toasts,
+    text: impl Into<String>,
+) {
     toasts.add(Toast {
         text: text.into().into(),
         kind: ToastKind::Warning,

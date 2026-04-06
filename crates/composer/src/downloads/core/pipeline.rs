@@ -27,7 +27,10 @@ pub async fn download_and_prepare(
     client: &GithubClient,
     request: DownloadRequest,
 ) -> std::result::Result<(Hash, LockItem), (Item, ComposerError)> {
-    let DownloadRequest { item, progress } = request;
+    let DownloadRequest {
+        item,
+        progress,
+    } = request;
 
     let span = tracing::debug_span!(
         "install.core",
@@ -74,7 +77,11 @@ pub async fn download_and_prepare(
 /// - **Linux / macOS**: скачивает файл напрямую (`.AppImage` / `.dmg`),
 ///   скачивает zipball и извлекает `res/`, переименовывает в `core.{ext}`,
 ///   хэширует директорию, коммитит.
-async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn ProgressSink>) -> Result<Hash> {
+async fn prepare_inner(
+    client: &GithubClient,
+    item: &Item,
+    progress: Option<&dyn ProgressSink>,
+) -> Result<Hash> {
     // 1. Staging directory
     tracing::debug!("creating staging directory");
     let folder = CoresLock::folder_name().to_path_buf();
@@ -110,9 +117,11 @@ async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn
         tracing::debug!("extracting archive");
         let archive_for_extract = archive_path.clone();
         let extract_for_extract = content_dir.clone();
-        tokio::task::spawn_blocking(move || archive::extract_zip(&archive_for_extract, &extract_for_extract))
-            .await
-            .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
+        tokio::task::spawn_blocking(move || {
+            archive::extract_zip(&archive_for_extract, &extract_for_extract)
+        })
+        .await
+        .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
 
         // 4. Rename VoxelCore.exe → core.exe
         tracing::debug!("renaming VoxelCore.exe → core.exe");
@@ -146,21 +155,22 @@ async fn prepare_inner(client: &GithubClient, item: &Item, progress: Option<&dyn
             .send()
             .await
             .map_err(clients::error::ClientError::from)?;
-        let zipball_bytes = zipball_response
-            .bytes()
-            .await
-            .map_err(clients::error::ClientError::from)?;
+        let zipball_bytes =
+            zipball_response.bytes().await.map_err(clients::error::ClientError::from)?;
         tokio::fs::write(&zipball_path, &zipball_bytes).await?;
 
         let zipball_extract = zipball_path.clone();
         let content_extract = content_dir.clone();
-        let found_res =
-            tokio::task::spawn_blocking(move || archive::extract_res_from_zip(&zipball_extract, &content_extract))
-                .await
-                .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
+        let found_res = tokio::task::spawn_blocking(move || {
+            archive::extract_res_from_zip(&zipball_extract, &content_extract)
+        })
+        .await
+        .map_err(|e| ComposerError::Io(std::io::Error::other(e)))??;
 
         if !found_res {
-            return Err(ComposerError::ResNotFound { path: zipball_path });
+            return Err(ComposerError::ResNotFound {
+                path: zipball_path,
+            });
         }
 
         tracing::debug!("res/ extracted from zipball");

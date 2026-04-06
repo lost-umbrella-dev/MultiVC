@@ -30,7 +30,10 @@ pub struct GithubClient {
 }
 
 impl GithubClient {
-    pub fn new(repo_owner: String, repo: String) -> Result<Self> {
+    pub fn new(
+        repo_owner: String,
+        repo: String,
+    ) -> Result<Self> {
         Ok(Self {
             client: Client::builder()
                 .user_agent(USER_AGENT)
@@ -69,7 +72,9 @@ impl GithubClient {
         let text = self.client.get(url.as_str()).send().await?.text().await?;
 
         serde_json::from_str::<Vec<Release>>(&text)
-            .inspect_err(|e| tracing::error!(%url, body = text, error = %e, "failed to parse releases"))
+            .inspect_err(
+                |e| tracing::error!(%url, body = text, error = %e, "failed to parse releases"),
+            )
             .map_err(Into::into)
     }
 
@@ -80,32 +85,27 @@ impl GithubClient {
         err,
     )]
     pub async fn get_latest_release(&self) -> Result<Release> {
-        self.get_all_releases()
-            .await?
-            .first()
-            .cloned()
-            .ok_or(ClientError::NotFound)
+        self.get_all_releases().await?.first().cloned().ok_or(ClientError::NotFound)
     }
 
-    pub async fn list(&self, options: GitHubListOptions) -> Result<Vec<Item>> {
+    pub async fn list(
+        &self,
+        options: GitHubListOptions,
+    ) -> Result<Vec<Item>> {
         Ok(self
             .get_all_releases()
             .await?
             .iter()
             .filter(|x| {
                 options.search_version.is_empty()
-                    || options
-                        .search_version
-                        .iter()
-                        .any(|v| x.tag_name.contains(&v.to_string()))
+                    || options.search_version.iter().any(|v| x.tag_name.contains(&v.to_string()))
             })
             .filter_map(|x| {
                 let asset = x.assets.iter().find(|a| asset_matches_current_system(&a.name));
                 asset.map(|a| {
-                    let version = x
-                        .tag_name
-                        .parse()
-                        .unwrap_or_else(|_| crate::version::Version::new(None, 0, 0, 0, Some(x.tag_name.to_owned())));
+                    let version = x.tag_name.parse().unwrap_or_else(|_| {
+                        crate::version::Version::new(None, 0, 0, 0, Some(x.tag_name.to_owned()))
+                    });
                     Item {
                         name: a.name.to_owned(),
                         version,
@@ -121,7 +121,10 @@ impl GithubClient {
             .collect())
     }
 
-    pub async fn get(&self, options: GitHubGetOptions) -> Result<Option<Item>> {
+    pub async fn get(
+        &self,
+        options: GitHubGetOptions,
+    ) -> Result<Option<Item>> {
         Ok(self
             .list(GitHubListOptions {
                 search_version: vec![options.version],
@@ -150,7 +153,10 @@ pub fn asset_matches_current_system(name: &str) -> bool {
         },
         "macos" => {
             (name.ends_with(".dmg") || name.ends_with(".pkg") || name.ends_with(".zip"))
-                && (name.contains("mac") || name.contains("osx") || name.contains("darwin") || name.contains("macos"))
+                && (name.contains("mac")
+                    || name.contains("osx")
+                    || name.contains("darwin")
+                    || name.contains("macos"))
         },
         "linux" => {
             (name.ends_with(".appimage")

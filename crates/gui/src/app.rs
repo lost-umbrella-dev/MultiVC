@@ -1,10 +1,7 @@
 //! Главный модуль GUI-приложения на egui.
 //!
 //! [`App`] — минимальный оркестратор: маршрутизирует [`Event`]-ы от worker'а
-//! в [`UiState`], делегирует отрисовку [`gui_ui::render_ui`].
-//!
-//! В debug-сборке загружает `gui_ui.dll` динамически для hot-reload.
-//! В release — вызывает `gui_ui::render_ui` статически.
+//! в [`UiState`], делегирует отрисовку [`crate::ui::render_ui`].
 
 use eframe::egui;
 use egui_toast::Toasts;
@@ -13,93 +10,9 @@ use composer::error::ComposerError;
 use composer::message::{Command, CoresInstalledResult, Event};
 use composer::worker::WorkerHandle;
 
-use gui_ui::Tab;
-use gui_ui::state::UiState;
-use gui_ui::toasts;
-
-// ── Hot-reload support (debug only) ─────────────────────────────────
-
-/// Dynamically loaded render function (debug builds).
-#[cfg(debug_assertions)]
-struct HotLib {
-    _lib: libloading::Library,
-    render_fn: libloading::Symbol<'static, unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>,
-    loaded_modified: Option<std::time::SystemTime>,
-}
-
-#[cfg(debug_assertions)]
-impl HotLib {
-    fn dll_path() -> std::path::PathBuf {
-        // cargo puts cdylib at target/debug/gui_ui.dll (Windows)
-        let mut path = std::env::current_exe().unwrap();
-        path.pop(); // remove exe name
-        // Go up from target/debug/gui.exe to target/debug/
-        #[cfg(target_os = "windows")]
-        path.push("gui_ui.dll");
-        #[cfg(target_os = "linux")]
-        path.push("libgui_ui.so");
-        #[cfg(target_os = "macos")]
-        path.push("libgui_ui.dylib");
-        path
-    }
-
-    fn load() -> Option<Self> {
-        let dll_path = Self::dll_path();
-        if !dll_path.exists() {
-            tracing::warn!("Hot-reload DLL not found at {}, using static link", dll_path.display());
-            return None;
-        }
-
-        // Copy DLL to a temp file to avoid lock issues on Windows
-        let tmp_path = dll_path.with_extension("hot.dll");
-        if let Err(e) = std::fs::copy(&dll_path, &tmp_path) {
-            tracing::warn!("Failed to copy DLL for hot-reload: {e}");
-            return None;
-        }
-
-        let modified = std::fs::metadata(&dll_path).ok().and_then(|m| m.modified().ok());
-
-        unsafe {
-            match libloading::Library::new(&tmp_path) {
-                Ok(lib) => {
-                    // SAFETY: render_ui has the same ABI because it's compiled with the same rustc
-                    // in the same workspace. We transmute the lifetime to 'static because the
-                    // library lives as long as this struct.
-                    let render_fn: libloading::Symbol<unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)> =
-                        match lib.get::<unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>(b"render_ui") {
-                            Ok(sym) => std::mem::transmute::<
-                                libloading::Symbol<'_, unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>,
-                                libloading::Symbol<'_, unsafe fn(&mut egui::Ui, &mut gui_ui::RenderArgs)>,
-                            >(sym),
-                            Err(e) => {
-                                tracing::error!("Failed to find render_ui in DLL: {e}");
-                                return None;
-                            },
-                        };
-                    tracing::info!("Hot-reload: loaded {}", dll_path.display());
-                    Some(Self {
-                        _lib: lib,
-                        render_fn,
-                        loaded_modified: modified,
-                    })
-                },
-                Err(e) => {
-                    tracing::error!("Failed to load DLL: {e}");
-                    None
-                },
-            }
-        }
-    }
-
-    fn needs_reload(&self) -> bool {
-        let dll_path = Self::dll_path();
-        let current_modified = std::fs::metadata(&dll_path).ok().and_then(|m| m.modified().ok());
-        match (self.loaded_modified, current_modified) {
-            (Some(old), Some(new)) => new > old,
-            _ => false,
-        }
-    }
-}
+use crate::ui::Tab;
+use crate::ui::state::UiState;
+use crate::ui::toasts;
 
 // ── App ──────────────────────────────────────────────────────────────
 
@@ -112,14 +25,13 @@ pub struct App {
 
     pub current_tab: Tab,
     pub state: UiState,
-
-    /// Hot-reload library (debug builds only).
-    #[cfg(debug_assertions)]
-    hot_lib: Option<HotLib>,
 }
 
 impl App {
-    pub fn new(handle: WorkerHandle, runtime: tokio::runtime::Runtime) -> Self {
+    pub fn new(
+        handle: WorkerHandle,
+        runtime: tokio::runtime::Runtime,
+    ) -> Self {
         handle.try_send(Command::GetCoresItems);
         handle.try_send(Command::GetInstancesItems);
 
@@ -128,19 +40,24 @@ impl App {
             runtime,
             current_tab: Tab::default(),
             state: UiState::default(),
-            #[cfg(debug_assertions)]
-            hot_lib: HotLib::load(),
         }
     }
 
-    fn drain_and_apply_events(&mut self, toasts: &mut Toasts) {
+    fn drain_and_apply_events(
+        &mut self,
+        toasts: &mut Toasts,
+    ) {
         let events = self.handle.drain_events();
         for event in events {
             self.apply_event(event, toasts);
         }
     }
 
-    fn apply_event(&mut self, event: Event, toasts: &mut Toasts) {
+    fn apply_event(
+        &mut self,
+        event: Event,
+        toasts: &mut Toasts,
+    ) {
         match event {
             Event::Saved(Ok(())) => {
                 self.state.cores.busy = false;
@@ -171,7 +88,10 @@ impl App {
                 toasts::error(toasts, format!("Instances save error: {e}"));
             },
 
-            Event::CoresInstalled(CoresInstalledResult { successful, failed }) => {
+            Event::CoresInstalled(CoresInstalledResult {
+                successful,
+                failed,
+            }) => {
                 let installed_keys: Vec<String> = self
                     .state
                     .cores
@@ -223,7 +143,10 @@ impl App {
                 toasts::error(toasts, format!("Instances validation error: {e}"));
             },
 
-            Event::CoreRemoved { hash, item } => {
+            Event::CoreRemoved {
+                hash,
+                item,
+            } => {
                 if let Some(lock_item) = &item {
                     self.state.cores.installed.retain(|(h, _)| h != &hash);
                     toasts::success(
@@ -235,7 +158,10 @@ impl App {
                 }
             },
 
-            Event::InstanceRemoved { name, item } => {
+            Event::InstanceRemoved {
+                name,
+                item,
+            } => {
                 self.state.instances.busy_instances.remove(&name);
                 if item.is_some() {
                     self.state.instances.installed.retain(|(n, _)| n != &name);
@@ -266,22 +192,36 @@ impl App {
                 toasts::error(toasts, format!("Instance update error: {e}"));
             },
 
-            Event::InstanceLaunched { name, result: Ok(pid) } => {
+            Event::InstanceLaunched {
+                name,
+                result: Ok(pid),
+            } => {
                 self.state.instances.running_instances.insert(name.clone(), pid);
-                if let Some((_n, meta)) = self.state.instances.installed.iter_mut().find(|(n, _)| n == &name) {
+                if let Some((_n, meta)) =
+                    self.state.instances.installed.iter_mut().find(|(n, _)| n == &name)
+                {
                     meta.last_launch = Some(chrono::Utc::now());
                 }
                 toasts::success(toasts, format!("Launched: {name} (PID {pid})"));
             },
-            Event::InstanceLaunched { name, result: Err(e) } => {
+            Event::InstanceLaunched {
+                name,
+                result: Err(e),
+            } => {
                 toasts::error(toasts, format!("Launch failed ({name}): {e}"));
             },
 
-            Event::InstanceStopped { name, status } => {
+            Event::InstanceStopped {
+                name,
+                status,
+            } => {
                 self.state.instances.running_instances.remove(&name);
                 match status {
                     Some(0) => toasts::info(toasts, format!("Instance stopped: {name}")),
-                    Some(code) => toasts::warning(toasts, format!("Instance stopped: {name} (exit code {code})")),
+                    Some(code) => toasts::warning(
+                        toasts,
+                        format!("Instance stopped: {name} (exit code {code})"),
+                    ),
                     None => toasts::warning(toasts, format!("Instance stopped: {name} (killed)")),
                 }
             },
@@ -314,7 +254,10 @@ impl App {
                 self.state.instances.installed = items;
             },
 
-            Event::InstanceDirSize { name, bytes } => {
+            Event::InstanceDirSize {
+                name,
+                bytes,
+            } => {
                 if let Some(ref mut panel) = self.state.instances.instance_panel
                     && panel.name == name
                 {
@@ -323,7 +266,10 @@ impl App {
             },
 
             Event::Error(ref e) => match e {
-                ComposerError::CoreInUse { hash: _, dependents } => {
+                ComposerError::CoreInUse {
+                    hash: _,
+                    dependents,
+                } => {
                     let names = dependents.join(", ");
                     toasts::error(toasts, format!("Cannot delete: used by instance(s): {names}"));
                 },
@@ -337,34 +283,36 @@ impl App {
         }
     }
 
-    /// Calls render_ui — dynamically via DLL in debug, statically in release.
-    fn call_render_ui(&mut self, ui: &mut egui::Ui) {
-        let mut args = gui_ui::RenderArgs {
+    /// Calls render_ui statically.
+    fn call_render_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+    ) {
+        let mut args = crate::ui::RenderArgs {
             current_tab: &mut self.current_tab,
             state: &mut self.state,
             handle: &self.handle,
         };
-
-        #[cfg(debug_assertions)]
-        {
-            if let Some(ref hot) = self.hot_lib {
-                unsafe { (hot.render_fn)(ui, &mut args) };
-                return;
-            }
-        }
-
-        // Fallback: static call (always used in release)
-        gui_ui::render_ui(ui, &mut args);
+        crate::ui::render_ui(ui, &mut args);
     }
 }
 
 // ── eframe::App ──────────────────────────────────────────────────────
 
 impl eframe::App for App {
-    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {}
+    fn logic(
+        &mut self,
+        _ctx: &egui::Context,
+        _frame: &mut eframe::Frame,
+    ) {
+    }
 
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        // Debug hotkeys + hot-reload check
+    fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        _frame: &mut eframe::Frame,
+    ) {
+        // Debug hotkeys
         #[cfg(debug_assertions)]
         {
             let ctx = ui.ctx();
@@ -399,26 +347,20 @@ impl eframe::App for App {
                     }
                 }
             }
-
-            // Check for DLL changes every frame (cheap: just stat the file)
-            if let Some(ref hot) = self.hot_lib
-                && hot.needs_reload()
-            {
-                tracing::info!("Hot-reload: DLL changed, reloading...");
-                self.hot_lib = None; // drop old library first
-                self.hot_lib = HotLib::load();
-            }
         }
 
         // Drain events
-        let mut toasts_instance = gui_ui::toasts::create_toasts();
+        let mut toasts_instance = crate::ui::toasts::create_toasts();
         self.drain_and_apply_events(&mut toasts_instance);
 
-        // Render UI (hot or static)
+        // Render UI
         self.call_render_ui(ui);
     }
 
-    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+    fn on_exit(
+        &mut self,
+        _gl: Option<&eframe::glow::Context>,
+    ) {
         tracing::info!("sending Shutdown to worker");
         self.handle.try_send(Command::Shutdown);
         let _ = self.state.settings.lock.save();

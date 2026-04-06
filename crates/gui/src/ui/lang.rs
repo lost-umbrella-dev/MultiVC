@@ -20,7 +20,10 @@ pub enum Lang {
 /// Returns `&'static str` with no runtime allocation for known keys.
 /// Unknown keys are leaked to produce a `&'static str` (safe — only
 /// happens if a developer forgot to add a key, not at user's input).
-pub fn t(key: &str, lang: Lang) -> &'static str {
+pub fn t(
+    key: &str,
+    lang: Lang,
+) -> &'static str {
     match (key, lang) {
         // ── Tab names ───────────────────────────────────────────
         ("tab.cores", Lang::En) => "Cores",

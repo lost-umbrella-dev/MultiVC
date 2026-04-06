@@ -14,7 +14,10 @@ pub fn icon_button(icon: impl Into<egui::WidgetText>) -> egui::Button<'static> {
 }
 
 /// Returns a [`egui::Frame`] with faint striped background when `striped` is true.
-pub fn striped_frame(striped: bool, ui: &egui::Ui) -> egui::Frame {
+pub fn striped_frame(
+    striped: bool,
+    ui: &egui::Ui,
+) -> egui::Frame {
     if striped {
         egui::Frame::NONE.fill(ui.visuals().faint_bg_color)
     } else {
@@ -23,7 +26,11 @@ pub fn striped_frame(striped: bool, ui: &egui::Ui) -> egui::Frame {
 }
 
 /// Renders a form row with a label and a single-line text input.
-pub fn form_row(ui: &mut egui::Ui, label: &str, value: &mut String) {
+pub fn form_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &mut String,
+) {
     ui.horizontal(|ui| {
         ui.label(label);
         ui.text_edit_singleline(value);
@@ -31,7 +38,11 @@ pub fn form_row(ui: &mut egui::Ui, label: &str, value: &mut String) {
 }
 
 /// Renders a section toolbar: heading on the left, action buttons on the right.
-pub fn tab_toolbar(ui: &mut egui::Ui, title: &str, buttons: impl FnOnce(&mut egui::Ui)) {
+pub fn tab_toolbar(
+    ui: &mut egui::Ui,
+    title: &str,
+    buttons: impl FnOnce(&mut egui::Ui),
+) {
     ui.horizontal(|ui| {
         ui.heading(title);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), buttons);
@@ -77,14 +88,17 @@ pub fn confirm_dialog(
 
 /// Opens `path` in the system file manager using the `open` crate.
 /// Shows a toast error/warning if the path does not exist or the open fails.
-pub fn open_folder(path: impl AsRef<std::path::Path>, toasts: &mut egui_toast::Toasts) {
+pub fn open_folder(
+    path: impl AsRef<std::path::Path>,
+    toasts: &mut egui_toast::Toasts,
+) {
     let path = path.as_ref();
     if path.exists() {
         if let Err(e) = open::that(path) {
-            crate::toasts::error(toasts, format!("Failed to open folder: {e}"));
+            crate::ui::toasts::error(toasts, format!("Failed to open folder: {e}"));
         }
     } else {
-        crate::toasts::warning(toasts, format!("Folder does not exist: {}", path.display()));
+        crate::ui::toasts::warning(toasts, format!("Folder does not exist: {}", path.display()));
     }
 }
 
@@ -98,10 +112,8 @@ pub fn open_folder_button(
     hover_text: &str,
     toasts: &mut egui_toast::Toasts,
 ) -> bool {
-    let clicked = ui
-        .add(icon_button(crate::icons::ICON_FOLDER))
-        .on_hover_text(hover_text)
-        .clicked();
+    let clicked =
+        ui.add(icon_button(crate::ui::icons::ICON_FOLDER)).on_hover_text(hover_text).clicked();
 
     if clicked {
         open_folder(path, toasts);
@@ -128,7 +140,8 @@ pub fn image_from_base64(
 
     if base64_str.is_empty() {
         let uri = format!("bytes://{id}/fallback");
-        let image = egui::Image::from_bytes(uri, fallback_svg.as_bytes().to_vec()).fit_to_exact_size(size);
+        let image =
+            egui::Image::from_bytes(uri, fallback_svg.as_bytes().to_vec()).fit_to_exact_size(size);
         ui.add(image)
     } else {
         // Hash the content so the URI changes when the image data changes,
@@ -145,8 +158,8 @@ pub fn image_from_base64(
             },
             Err(_) => {
                 let fallback_uri = format!("bytes://{id}/fallback");
-                let image =
-                    egui::Image::from_bytes(fallback_uri, fallback_svg.as_bytes().to_vec()).fit_to_exact_size(size);
+                let image = egui::Image::from_bytes(fallback_uri, fallback_svg.as_bytes().to_vec())
+                    .fit_to_exact_size(size);
                 ui.add(image)
             },
         }
@@ -188,7 +201,9 @@ pub fn start_image_pick(ctx: &egui::Context) -> Option<ImagePickTask> {
         ctx.request_repaint();
     });
 
-    Some(ImagePickTask { rx })
+    Some(ImagePickTask {
+        rx,
+    })
 }
 
 fn convert_image_to_base64(path: &std::path::Path) -> Result<String, String> {
@@ -199,7 +214,8 @@ fn convert_image_to_base64(path: &std::path::Path) -> Result<String, String> {
     match ext.as_str() {
         "svg" | "webp" => Ok(base64::engine::general_purpose::STANDARD.encode(&bytes)),
         "png" | "jpg" | "jpeg" => {
-            let img = image::load_from_memory(&bytes).map_err(|e| format!("Failed to decode image: {e}"))?;
+            let img = image::load_from_memory(&bytes)
+                .map_err(|e| format!("Failed to decode image: {e}"))?;
             let mut webp_buf = std::io::Cursor::new(Vec::new());
             img.write_to(&mut webp_buf, image::ImageFormat::WebP)
                 .map_err(|e| format!("Failed to encode WebP: {e}"))?;

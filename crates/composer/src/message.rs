@@ -48,7 +48,9 @@ pub enum Command {
     SaveInstances,
 
     /// Установить ядра (скачать, распаковать, зарегистрировать).
-    InstallCores { requests: Vec<DownloadRequest> },
+    InstallCores {
+        requests: Vec<DownloadRequest>,
+    },
 
     /// Проверить директорию ядер на соответствие lock-файлу.
     ValidateCores,
@@ -57,7 +59,9 @@ pub enum Command {
     ValidateInstances,
 
     /// Удалить ядро по хэшу.
-    RemoveCore { hash: Hash },
+    RemoveCore {
+        hash: Hash,
+    },
 
     /// Создать новый инстанс.
     CreateInstance {
@@ -67,7 +71,9 @@ pub enum Command {
     },
 
     /// Получить конфигурацию инстанса (instance.toml) по имени.
-    GetInstance { name: String },
+    GetInstance {
+        name: String,
+    },
 
     /// Обновить инстанс (конфигурацию + метаданные).
     EditInstance {
@@ -77,7 +83,9 @@ pub enum Command {
     },
 
     /// Удалить инстанс по имени.
-    RemoveInstance { name: String },
+    RemoveInstance {
+        name: String,
+    },
 
     /// Запросить текущий список установленных ядер из lock.
     GetCoresItems,
@@ -88,19 +96,29 @@ pub enum Command {
     /// Получить список доступных версий ядер.
     ///
     /// `search_version` — фильтр по версиям (пустой = все).
-    FetchCoresList { search_version: GitHubListOptions },
+    FetchCoresList {
+        search_version: GitHubListOptions,
+    },
 
     /// Получить конкретную версию ядра.
-    FetchCore { version: Version },
+    FetchCore {
+        version: Version,
+    },
 
     /// Запустить инстанс как дочерний процесс.
-    LaunchInstance { name: String },
+    LaunchInstance {
+        name: String,
+    },
 
     /// Остановить запущенный инстанс (kill процесс).
-    StopInstance { name: String },
+    StopInstance {
+        name: String,
+    },
 
     /// Получить размер директории инстанса на диске.
-    GetInstanceDirSize { name: String },
+    GetInstanceDirSize {
+        name: String,
+    },
 
     /// Завершить background-поток.
     Shutdown,
@@ -180,7 +198,10 @@ pub enum Event {
     },
 
     /// Размер директории инстанса на диске.
-    InstanceDirSize { name: String, bytes: u64 },
+    InstanceDirSize {
+        name: String,
+        bytes: u64,
+    },
 
     /// Произошла фатальная ошибка.
     Error(ComposerError),

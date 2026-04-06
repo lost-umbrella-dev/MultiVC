@@ -11,8 +11,8 @@ use clients::hash::Hash;
 use composer::item::LockItem;
 use composer::worker::WorkerHandle;
 
-use crate::lang::{self, Lang};
-use crate::state::{InstancePanelTab, InstancesTabState};
+use crate::ui::lang::{self, Lang};
+use crate::ui::state::{InstancePanelTab, InstancesTabState};
 
 pub(super) fn render_instance_panel(
     ui: &mut egui::Ui,
@@ -43,8 +43,16 @@ pub(super) fn render_instance_panel(
         .show(ui.ctx(), |ui| {
             // ── Tab bar ─────────────────────────────────────────
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut new_tab, InstancePanelTab::Info, lang::t("panel.info", lang));
-                ui.selectable_value(&mut new_tab, InstancePanelTab::Log, lang::t("panel.log", lang));
+                ui.selectable_value(
+                    &mut new_tab,
+                    InstancePanelTab::Info,
+                    lang::t("panel.info", lang),
+                );
+                ui.selectable_value(
+                    &mut new_tab,
+                    InstancePanelTab::Log,
+                    lang::t("panel.log", lang),
+                );
                 ui.selectable_value(
                     &mut new_tab,
                     InstancePanelTab::Settings,

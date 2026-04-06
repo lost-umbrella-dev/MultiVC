@@ -137,7 +137,10 @@ fn format_size(bytes: u64) -> String {
 }
 
 /// Выводит причины непрохождения валидации.
-fn print_validate_reasons(label: &str, reasons: &[ValidateReason]) {
+fn print_validate_reasons(
+    label: &str,
+    reasons: &[ValidateReason],
+) {
     if reasons.is_empty() {
         return;
     }
@@ -161,7 +164,10 @@ fn print_validate_reasons(label: &str, reasons: &[ValidateReason]) {
 }
 
 /// Выводит причины непрохождения валидации инстансов.
-fn print_instance_validate_reasons(label: &str, reasons: &[InstanceValidateReason]) {
+fn print_instance_validate_reasons(
+    label: &str,
+    reasons: &[InstanceValidateReason],
+) {
     if reasons.is_empty() {
         return;
     }
@@ -186,7 +192,10 @@ async fn load_composer() -> Result<Composer, Box<dyn std::error::Error>> {
 /// 1. Если `query` парсится как [`Version`] — ищет по версии (с дефолтным `v` префиксом).
 /// 2. Иначе — ищет по префиксу строкового представления хэша (`sha256:abc...`)
 ///    или по префиксу hex-части (`abc...`).
-fn find_cores_by_query(cores: &LockMap, query: &str) -> Vec<(Hash, LockItem)> {
+fn find_cores_by_query(
+    cores: &LockMap,
+    query: &str,
+) -> Vec<(Hash, LockItem)> {
     // 1. Пробуем распарсить как версию
     if let Ok(version) = query.parse::<Version>() {
         let prefixed = version.clone().with_default_prefix();
@@ -208,7 +217,8 @@ fn find_cores_by_query(cores: &LockMap, query: &str) -> Vec<(Hash, LockItem)> {
         .iter()
         .filter(|entry| {
             let hash_str = entry.key().to_string();
-            hash_str.starts_with(query) || hash_str.split_once(':').is_some_and(|(_, hex)| hex.starts_with(query))
+            hash_str.starts_with(query)
+                || hash_str.split_once(':').is_some_and(|(_, hex)| hex.starts_with(query))
         })
         .map(|entry| (entry.key().clone(), entry.value().clone()))
         .collect()
@@ -227,7 +237,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         // ── install ──────────────────────────────────────────────
-        Commands::Install { version } => {
+        Commands::Install {
+            version,
+        } => {
             // Ищем ядро нужной версии через GitHub API
             let version = version.with_default_prefix();
             let query_client = create_github_client()?;
@@ -306,7 +318,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
 
         // ── fetch ────────────────────────────────────────────────
-        Commands::Fetch { versions } => {
+        Commands::Fetch {
+            versions,
+        } => {
             let client = create_github_client()?;
             let versions = versions.into_iter().map(Version::with_default_prefix).collect();
             let items = client
@@ -350,7 +364,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
 
         // ── remove ───────────────────────────────────────────────
-        Commands::Remove { query } => {
+        Commands::Remove {
+            query,
+        } => {
             let composer = load_composer().await?;
             let matches = find_cores_by_query(composer.cores_items(), &query);
 
@@ -361,7 +377,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
                 1 => {
                     let (hash, lock_item) = &matches[0];
-                    println!("Удаляю: «{}» {} ({hash})", lock_item.item.name, lock_item.item.version,);
+                    println!(
+                        "Удаляю: «{}» {} ({hash})",
+                        lock_item.item.name, lock_item.item.version,
+                    );
                     composer.remove_core(hash).await?;
                     composer.save_cores().await?;
                     println!("\u{2713} Ядро удалено");
@@ -375,7 +394,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             hash_str
                         };
-                        eprintln!("  {} {} ({})", lock_item.item.name, lock_item.item.version, hash_short,);
+                        eprintln!(
+                            "  {} {} ({})",
+                            lock_item.item.name, lock_item.item.version, hash_short,
+                        );
                     }
                     std::process::exit(1);
                 },
@@ -399,12 +421,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let core_display = match &detail.core_version_display {
                     Some(version) => {
                         let h = detail.config.core_version.to_string();
-                        let short = if h.len() > 20 { format!("{}..", &h[..20]) } else { h };
+                        let short = if h.len() > 20 {
+                            format!("{}..", &h[..20])
+                        } else {
+                            h
+                        };
                         format!("{version} ({short})")
                     },
                     None => {
                         let h = detail.config.core_version.to_string();
-                        if h.len() > 40 { format!("{}..", &h[..40]) } else { h }
+                        if h.len() > 40 {
+                            format!("{}..", &h[..40])
+                        } else {
+                            h
+                        }
                     },
                 };
 
@@ -470,7 +500,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
 
         // ── remove-instance ──────────────────────────────────────
-        Commands::RemoveInstance { name } => {
+        Commands::RemoveInstance {
+            name,
+        } => {
             let composer = load_composer().await?;
 
             if !composer.instances_items().contains_key(&name) {
@@ -485,7 +517,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
 
         // ── launch ───────────────────────────────────────────────
-        Commands::Launch { name } => {
+        Commands::Launch {
+            name,
+        } => {
             let composer = load_composer().await?;
 
             println!("Запускаю инстанс «{name}»...");

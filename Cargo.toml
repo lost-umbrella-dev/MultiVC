@@ -45,7 +45,6 @@ strum = { version = "0.28", features = ["derive"] }
 # ==== self-crates ====
 clients = { path = "crates/clients" }
 composer = { path = "crates/composer" }
-gui-ui = { path = "crates/gui-ui" }
 
 [workspace.lints.clippy]
 # https://users.rust-lang.org/t/to-string-vs-to-owned-for-string-literals/1441

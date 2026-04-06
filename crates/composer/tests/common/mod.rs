@@ -23,8 +23,9 @@ use tracing_tree::HierarchicalLayer;
 /// Возвращает `DefaultGuard` — пока он жив, логи пишутся.
 /// Уровень берётся из `RUST_LOG`, по умолчанию `debug`.
 pub fn init_test_tracing() -> DefaultGuard {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("debug,h2=warn,hyper_util=warn,hyper=warn,reqwest=warn"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new("debug,h2=warn,hyper_util=warn,hyper=warn,reqwest=warn")
+    });
 
     let layer = HierarchicalLayer::new(2)
         .with_ansi(true)
@@ -40,7 +41,10 @@ pub fn init_test_tracing() -> DefaultGuard {
 }
 
 /// Создаёт тестовый `Item` с заданным именем и версией.
-pub fn make_item(name: &str, version: &str) -> Item {
+pub fn make_item(
+    name: &str,
+    version: &str,
+) -> Item {
     Item {
         name: name.to_owned(),
         version: version.parse().expect("invalid test version"),
@@ -54,7 +58,10 @@ pub fn make_item(name: &str, version: &str) -> Item {
 }
 
 /// Создаёт тестовый `LockItem` с текущим временем.
-pub fn make_lock_item(name: &str, version: &str) -> LockItem {
+pub fn make_lock_item(
+    name: &str,
+    version: &str,
+) -> LockItem {
     LockItem {
         item: make_item(name, version),
         timestamp: Utc::now(),
@@ -84,7 +91,11 @@ pub fn make_lock_map(n: usize) -> (LockMap, Vec<(Hash, LockItem)>) {
 }
 
 /// Создаёт файл с произвольным содержимым внутри директории.
-pub fn write_test_file(dir: &Path, name: &str, content: &[u8]) {
+pub fn write_test_file(
+    dir: &Path,
+    name: &str,
+    content: &[u8],
+) {
     let path = dir.join(name);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).expect("не удалось создать родительскую директорию");
@@ -95,10 +106,14 @@ pub fn write_test_file(dir: &Path, name: &str, content: &[u8]) {
 /// Создаёт простой ZIP-архив в памяти и записывает в указанный путь.
 ///
 /// `files` — список `(имя_в_архиве, содержимое)`.
-pub fn create_test_zip(archive_path: &Path, files: &[(&str, &[u8])]) {
+pub fn create_test_zip(
+    archive_path: &Path,
+    files: &[(&str, &[u8])],
+) {
     let file = std::fs::File::create(archive_path).expect("не удалось создать файл архива");
     let mut zip = zip::ZipWriter::new(file);
-    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
 
     for (name, content) in files {
         zip.start_file(*name, options).expect("не удалось начать файл в архиве");

@@ -14,11 +14,11 @@ use composer::lock::ValidateReason;
 use composer::message::Command;
 use composer::worker::WorkerHandle;
 
-use crate::icons;
-use crate::lang::{self, Lang};
-use crate::state::CoresTabState;
-use crate::toasts;
-use crate::widgets::{confirm_dialog, icon_button, tab_toolbar};
+use crate::ui::icons;
+use crate::ui::lang::{self, Lang};
+use crate::ui::state::CoresTabState;
+use crate::ui::toasts;
+use crate::ui::widgets::{confirm_dialog, icon_button, tab_toolbar};
 
 // ── Helper functions ─────────────────────────────────────────────────
 
@@ -48,7 +48,9 @@ pub fn render(
         state.fetched_once = true;
         state.busy = true;
         handle.try_send(Command::FetchCoresList {
-            search_version: GitHubListOptions { search_version: vec![] },
+            search_version: GitHubListOptions {
+                search_version: vec![],
+            },
         });
     }
 
@@ -75,7 +77,9 @@ pub fn render(
         {
             state.busy = true;
             handle.try_send(Command::FetchCoresList {
-                search_version: GitHubListOptions { search_version: vec![] },
+                search_version: GitHubListOptions {
+                    search_version: vec![],
+                },
             });
             toasts::info(toasts_out, lang::t("status.fetching", lang));
         }
@@ -84,17 +88,13 @@ pub fn render(
         let pending_count = state.pending_installs.len();
         if pending_count > 0 {
             let label = format!("{} ({})", lang::t("action.download", lang), pending_count);
-            if ui
-                .button(label)
-                .on_hover_text(lang::t("tip.download_selected", lang))
-                .clicked()
-            {
+            if ui.button(label).on_hover_text(lang::t("tip.download_selected", lang)).clicked() {
                 let items: Vec<_> = state.pending_installs.drain(..).collect();
-                let requests: Vec<_> = items
-                    .into_iter()
-                    .map(|item| state.downloads.start(&item, ctx))
-                    .collect();
-                handle.try_send(Command::InstallCores { requests });
+                let requests: Vec<_> =
+                    items.into_iter().map(|item| state.downloads.start(&item, ctx)).collect();
+                handle.try_send(Command::InstallCores {
+                    requests,
+                });
             }
         }
     });
@@ -112,7 +112,9 @@ pub fn render(
             lang::t("action.cancel", lang),
         ) {
             if confirmed {
-                handle.try_send(Command::RemoveCore { hash: hash.clone() });
+                handle.try_send(Command::RemoveCore {
+                    hash: hash.clone(),
+                });
             }
             state.confirm_remove = None;
         }
@@ -120,20 +122,19 @@ pub fn render(
 
     // ── Installed cores (max 10 rows, full width) ────────────────
     if !state.installed.is_empty() {
-        ui.label(
-            egui::RichText::new(lang::t("section.installed", lang))
-                .strong()
-                .size(14.0),
-        );
+        ui.label(egui::RichText::new(lang::t("section.installed", lang)).strong().size(14.0));
 
         // Header
         ui.horizontal(|ui| {
             let actions_width = 60.0;
             let version_width = 80.0;
             let hash_width = 160.0;
-            let name_width =
-                (ui.available_width() - version_width - hash_width - actions_width - ui.spacing().item_spacing.x * 4.0)
-                    .max(80.0);
+            let name_width = (ui.available_width()
+                - version_width
+                - hash_width
+                - actions_width
+                - ui.spacing().item_spacing.x * 4.0)
+                .max(80.0);
             let row_height = ui.text_style_height(&egui::TextStyle::Body);
 
             ui.add_sized(
@@ -161,10 +162,9 @@ pub fn render(
         let max_rows = 10;
         let max_height = row_height * max_rows as f32;
 
-        egui::ScrollArea::vertical()
-            .id_salt("installed_cores_scroll")
-            .max_height(max_height)
-            .show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("installed_cores_scroll").max_height(max_height).show(
+            ui,
+            |ui| {
                 ui.set_width(ui.available_width());
 
                 let mut request_remove: Option<(Hash, String)> = None;
@@ -177,7 +177,8 @@ pub fn render(
                         hash_str.clone()
                     };
 
-                    let dependents = state.core_dependents.get(hash).map(|v| v.as_slice()).unwrap_or(&[]);
+                    let dependents =
+                        state.core_dependents.get(hash).map(|v| v.as_slice()).unwrap_or(&[]);
 
                     let row_actions = installed_core_row(
                         ui,
@@ -202,17 +203,14 @@ pub fn render(
                 if let Some(rm) = request_remove {
                     state.confirm_remove = Some(rm);
                 }
-            });
+            },
+        );
     }
 
     // ── Validation results ───────────────────────────────────────
     if !state.validation.is_empty() {
         ui.separator();
-        ui.label(
-            egui::RichText::new(lang::t("section.validation", lang))
-                .strong()
-                .size(14.0),
-        );
+        ui.label(egui::RichText::new(lang::t("section.validation", lang)).strong().size(14.0));
         for reason in &state.validation {
             match reason {
                 ValidateReason::HashNotMatcher(hash, item) => {
@@ -247,20 +245,19 @@ pub fn render(
     if !state.available.is_empty() {
         ui.separator();
 
-        ui.label(
-            egui::RichText::new(lang::t("section.available", lang))
-                .strong()
-                .size(14.0),
-        );
+        ui.label(egui::RichText::new(lang::t("section.available", lang)).strong().size(14.0));
 
         // Column headers
         ui.horizontal(|ui| {
             let status_width = 30.0;
             let size_width = 80.0;
             let version_width = 80.0;
-            let name_width =
-                (ui.available_width() - version_width - size_width - status_width - ui.spacing().item_spacing.x * 4.0)
-                    .max(80.0);
+            let name_width = (ui.available_width()
+                - version_width
+                - size_width
+                - status_width
+                - ui.spacing().item_spacing.x * 4.0)
+                .max(80.0);
             let row_height = ui.text_style_height(&egui::TextStyle::Body);
 
             ui.add_sized(
@@ -282,53 +279,52 @@ pub fn render(
             ui.add_sized([status_width, row_height], egui::Label::new(""));
         });
 
-        let installed_names: HashSet<&str> = state.installed.iter().map(|(_, li)| li.item.name.as_str()).collect();
+        let installed_names: HashSet<&str> =
+            state.installed.iter().map(|(_, li)| li.item.name.as_str()).collect();
 
-        egui::ScrollArea::vertical()
-            .id_salt("available_cores_scroll")
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
+        egui::ScrollArea::vertical().id_salt("available_cores_scroll").show(ui, |ui| {
+            ui.set_width(ui.available_width());
 
-                for (row_idx, item) in state.available.iter().enumerate() {
-                    let is_downloading = state.downloads.is_active(item);
-                    let is_installed = installed_names.contains(item.name.as_str());
-                    let is_selected = state
-                        .pending_installs
-                        .iter()
-                        .any(|p| p.name == item.name && p.version == item.version);
+            for (row_idx, item) in state.available.iter().enumerate() {
+                let is_downloading = state.downloads.is_active(item);
+                let is_installed = installed_names.contains(item.name.as_str());
+                let is_selected = state
+                    .pending_installs
+                    .iter()
+                    .any(|p| p.name == item.name && p.version == item.version);
 
-                    let row_action = available_core_row(
-                        ui,
-                        &item.name,
-                        &item.version.to_string(),
-                        &crate::format_size(item.size),
-                        is_downloading,
-                        if is_downloading {
-                            state.downloads.fraction(item)
-                        } else {
-                            None
-                        },
-                        is_installed,
-                        is_selected,
-                        row_idx % 2 == 1,
-                        lang,
-                    );
+                let row_action = available_core_row(
+                    ui,
+                    &item.name,
+                    &item.version.to_string(),
+                    &crate::ui::format_size(item.size),
+                    is_downloading,
+                    if is_downloading {
+                        state.downloads.fraction(item)
+                    } else {
+                        None
+                    },
+                    is_installed,
+                    is_selected,
+                    row_idx % 2 == 1,
+                    lang,
+                );
 
-                    match row_action {
-                        AvailableRowAction::Select => {
-                            if !is_selected {
-                                state.pending_installs.push(item.clone());
-                            }
-                        },
-                        AvailableRowAction::Deselect => {
-                            state
-                                .pending_installs
-                                .retain(|p| !(p.name == item.name && p.version == item.version));
-                        },
-                        AvailableRowAction::None => {},
-                    }
+                match row_action {
+                    AvailableRowAction::Select => {
+                        if !is_selected {
+                            state.pending_installs.push(item.clone());
+                        }
+                    },
+                    AvailableRowAction::Deselect => {
+                        state
+                            .pending_installs
+                            .retain(|p| !(p.name == item.name && p.version == item.version));
+                    },
+                    AvailableRowAction::None => {},
                 }
-            });
+            }
+        });
     } else if state.busy {
         ui.separator();
         ui.horizontal(|ui| {

@@ -3,10 +3,10 @@
 use eframe::egui;
 use egui_toast::Toasts;
 
-use crate::icons;
-use crate::lang::{self, Lang};
-use crate::state::InstancesTabState;
-use crate::widgets::open_folder;
+use crate::ui::icons;
+use crate::ui::lang::{self, Lang};
+use crate::ui::state::InstancesTabState;
+use crate::ui::widgets::open_folder;
 
 pub(super) fn render(
     ui: &mut egui::Ui,

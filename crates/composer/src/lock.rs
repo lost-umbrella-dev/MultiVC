@@ -97,7 +97,10 @@ where
     ///
     /// Возвращает удалённый элемент, или `None` если элемент не найден.
     /// Lock-файл **не** сохраняется — вызывающий код решает когда вызвать `save()`.
-    async fn remove(&self, hash: &Hash) -> Result<Option<LockItem>> {
+    async fn remove(
+        &self,
+        hash: &Hash,
+    ) -> Result<Option<LockItem>> {
         let span = tracing::debug_span!(
             parent: &Self::span(),
             "lock.remove",

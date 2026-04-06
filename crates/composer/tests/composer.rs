@@ -118,10 +118,7 @@ async fn save_cores_only() {
 
     // 6. Проверяем что файл cores/lock.toml создан
     let cores_lock_path = tmp.path().join("cores/lock.toml");
-    assert!(
-        cores_lock_path.exists(),
-        "cores/lock.toml должен быть создан после save_cores()"
-    );
+    assert!(cores_lock_path.exists(), "cores/lock.toml должен быть создан после save_cores()");
 
     // 7. Проверяем что файл не пустой (содержит сериализованные данные)
     let content = std::fs::read_to_string(&cores_lock_path).unwrap();
@@ -160,10 +157,7 @@ async fn save_instances_only() {
     composer.instances_items().insert("only_instance".to_owned(), item);
 
     // 5. Сохраняем только instances
-    composer
-        .save_instances()
-        .await
-        .expect("save_instances() не должен падать");
+    composer.save_instances().await.expect("save_instances() не должен падать");
 
     // 6. Проверяем что файл instances/lock.toml создан
     let instances_lock_path = tmp.path().join("instances/lock.toml");
@@ -206,10 +200,7 @@ async fn validate_empty_state() {
         .validate_cores()
         .await
         .expect("validate_cores() не должен падать для пустого состояния");
-    assert!(
-        cores_reasons.is_empty(),
-        "пустой cores не должен порождать причин невалидности"
-    );
+    assert!(cores_reasons.is_empty(), "пустой cores не должен порождать причин невалидности");
 
     // 6. Валидируем инстансы — аналогично пустой результат
     let instances_reasons = composer

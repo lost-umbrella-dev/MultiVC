@@ -2,17 +2,17 @@
 
 use eframe::egui;
 
-use crate::Tab;
-use crate::download_tracker::DownloadTracker;
-use crate::icons;
-use crate::lang;
+use crate::ui::Tab;
+use crate::ui::download_tracker::DownloadTracker;
+use crate::ui::icons;
+use crate::ui::lang;
 
 /// Renders the bottom navigation bar.
 pub fn render(
     ui: &mut egui::Ui,
     current_tab: &mut Tab,
     downloads: &DownloadTracker,
-    settings_state: &mut crate::state::SettingsState,
+    settings_state: &mut crate::ui::state::SettingsState,
 ) {
     let lang = settings_state.lock.language;
 
@@ -21,7 +21,8 @@ pub fn render(
         ui.separator();
 
         let cores_label = format!("{} {}", icons::ICON_TAB_CORES, lang::t("tab.cores", lang));
-        let instances_label = format!("{} {}", icons::ICON_TAB_INSTANCES, lang::t("tab.instances", lang));
+        let instances_label =
+            format!("{} {}", icons::ICON_TAB_INSTANCES, lang::t("tab.instances", lang));
 
         ui.selectable_value(current_tab, Tab::Cores, cores_label);
         ui.selectable_value(current_tab, Tab::Instances, instances_label);
@@ -30,7 +31,7 @@ pub fn render(
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             // Settings button
             if ui
-                .add(crate::widgets::icon_button(icons::ICON_SETTINGS))
+                .add(crate::ui::widgets::icon_button(icons::ICON_SETTINGS))
                 .on_hover_text(lang::t("tip.settings", lang))
                 .clicked()
             {
@@ -38,9 +39,10 @@ pub fn render(
             }
             ui.separator();
             // GitHub icon button
-            let github_image = egui::Image::from_bytes("bytes://github.svg", icons::GITHUB.as_bytes())
-                .fit_to_exact_size(egui::vec2(22.0, 22.0))
-                .tint(egui::Color32::WHITE);
+            let github_image =
+                egui::Image::from_bytes("bytes://github.svg", icons::GITHUB.as_bytes())
+                    .fit_to_exact_size(egui::vec2(22.0, 22.0))
+                    .tint(egui::Color32::WHITE);
             let github_button = egui::Button::image(github_image).frame(false);
             if ui
                 .add(github_button)

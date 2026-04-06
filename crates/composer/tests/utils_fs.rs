@@ -20,10 +20,7 @@ fn hash_empty_directory() {
     let hash = fs::compute_directory_hash(tmp.path()).unwrap();
 
     // 3. Проверяем что результат — SHA256 и вычисление не паникует
-    assert!(
-        matches!(hash, Hash::SHA256(_)),
-        "хэш пустой директории должен быть SHA256"
-    );
+    assert!(matches!(hash, Hash::SHA256(_)), "хэш пустой директории должен быть SHA256");
 }
 
 #[test]
@@ -69,10 +66,7 @@ fn hash_nested_dirs() {
     let hash = fs::compute_directory_hash(tmp.path()).unwrap();
 
     // 3. Проверяем что хэш вычислен корректно (включает маркеры dir: и file:)
-    assert!(
-        matches!(hash, Hash::SHA256(_)),
-        "хэш вложенных директорий должен быть SHA256"
-    );
+    assert!(matches!(hash, Hash::SHA256(_)), "хэш вложенных директорий должен быть SHA256");
 
     // 4. Сравниваем с хэшем плоской директории — должны различаться
     let flat_tmp = TempDir::new().unwrap();
@@ -105,10 +99,7 @@ fn hash_deterministic() {
     let hash_b = fs::compute_directory_hash(tmp_b.path()).unwrap();
 
     // 3. Проверяем что хэши совпадают — детерминизм
-    assert_eq!(
-        hash_a, hash_b,
-        "два идентичных дерева файлов должны давать одинаковый хэш"
-    );
+    assert_eq!(hash_a, hash_b, "два идентичных дерева файлов должны давать одинаковый хэш");
 }
 
 #[test]
@@ -167,10 +158,7 @@ fn hash_add_file_detected() {
     let hash_after = fs::compute_directory_hash(tmp.path()).unwrap();
 
     // 4. Проверяем что хэш изменился
-    assert_ne!(
-        hash_before, hash_after,
-        "добавление нового файла должно приводить к другому хэшу"
-    );
+    assert_ne!(hash_before, hash_after, "добавление нового файла должно приводить к другому хэшу");
 }
 
 #[test]
@@ -187,15 +175,8 @@ fn hash_directory_verify_match() {
 
     // 3. Проверяем что hash_directory возвращает true при совпадении
     let result = fs::hash_directory(tmp.path(), &expected_hash);
-    assert!(
-        result.is_ok(),
-        "hash_directory не должен возвращать ошибку: {:?}",
-        result.err()
-    );
-    assert!(
-        result.unwrap(),
-        "hash_directory должен вернуть true для корректного хэша"
-    );
+    assert!(result.is_ok(), "hash_directory не должен возвращать ошибку: {:?}", result.err());
+    assert!(result.unwrap(), "hash_directory должен вернуть true для корректного хэша");
 }
 
 #[test]
@@ -216,10 +197,7 @@ fn hash_directory_verify_mismatch() {
         "hash_directory не должен возвращать ошибку при несовпадении: {:?}",
         result.err()
     );
-    assert!(
-        !result.unwrap(),
-        "hash_directory должен вернуть false для неверного хэша"
-    );
+    assert!(!result.unwrap(), "hash_directory должен вернуть false для неверного хэша");
 }
 
 #[test]
@@ -232,10 +210,7 @@ fn normalize_relative_path_uses_forward_slash() {
     assert_eq!(normalized, "foo/bar/baz.txt", "путь должен использовать прямые слеши");
 
     // 2. Проверяем что результат не содержит обратных слешей
-    assert!(
-        !normalized.contains('\\'),
-        "нормализованный путь не должен содержать обратных слешей"
-    );
+    assert!(!normalized.contains('\\'), "нормализованный путь не должен содержать обратных слешей");
 
     // 3. Проверяем однокомпонентный путь
     let single = Path::new("file.txt");

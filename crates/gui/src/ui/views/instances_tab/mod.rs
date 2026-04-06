@@ -12,15 +12,16 @@ use composer::lock::instances::{InstanceValidateReason, InstancesItem};
 use composer::message::Command;
 use composer::worker::WorkerHandle;
 
-use crate::icons;
-use crate::lang::{self, Lang};
-use crate::state::{
-    InstanceForm, InstancePanelState, InstancePanelTab, InstancesSortColumn, InstancesTabState, SortDir,
+use crate::ui::icons;
+use crate::ui::lang::{self, Lang};
+use crate::ui::state::{
+    InstanceForm, InstancePanelState, InstancePanelTab, InstancesSortColumn, InstancesTabState,
+    SortDir,
 };
-use crate::toasts;
-use crate::widgets::{
-    confirm_dialog, form_row, icon_button, image_from_base64, open_folder, pick_image_as_base64, striped_frame,
-    tab_toolbar,
+use crate::ui::toasts;
+use crate::ui::widgets::{
+    confirm_dialog, form_row, icon_button, image_from_base64, open_folder, pick_image_as_base64,
+    striped_frame, tab_toolbar,
 };
 
 // ── Row helpers ──────────────────────────────────────────────────────
@@ -170,10 +171,7 @@ pub fn render(
             handle.try_send(Command::ValidateInstances);
         }
 
-        if ui
-            .add(icon_button("+"))
-            .on_hover_text(lang::t("action.new_instance", lang))
-            .clicked()
+        if ui.add(icon_button("+")).on_hover_text(lang::t("action.new_instance", lang)).clicked()
             && state.create_form.is_none()
         {
             state.create_form = Some(InstanceForm::default());
@@ -317,7 +315,11 @@ pub fn render(
             last_launch: None,
             created_at: None,
         };
-        handle.try_send(Command::CreateInstance { name, config, meta });
+        handle.try_send(Command::CreateInstance {
+            name,
+            config,
+            meta,
+        });
         toasts::info(toasts_out, lang::t("status.creating", lang));
         state.create_form = None;
     }
@@ -423,8 +425,12 @@ pub fn render(
             let (name_b, item_b) = &state.installed[b];
 
             match (state.sort_col, state.sort_dir) {
-                (InstancesSortColumn::LastLaunch, SortDir::Descending) => item_b.last_launch.cmp(&item_a.last_launch),
-                (InstancesSortColumn::LastLaunch, SortDir::Ascending) => item_a.last_launch.cmp(&item_b.last_launch),
+                (InstancesSortColumn::LastLaunch, SortDir::Descending) => {
+                    item_b.last_launch.cmp(&item_a.last_launch)
+                },
+                (InstancesSortColumn::LastLaunch, SortDir::Ascending) => {
+                    item_a.last_launch.cmp(&item_b.last_launch)
+                },
                 (InstancesSortColumn::Name, SortDir::Ascending) => name_a.cmp(name_b),
                 (InstancesSortColumn::Name, SortDir::Descending) => name_b.cmp(name_a),
                 _ => std::cmp::Ordering::Equal,
@@ -432,46 +438,53 @@ pub fn render(
         });
 
         // Scrollable rows
-        egui::ScrollArea::vertical()
-            .id_salt("instances_list_scroll")
-            .show(ui, |ui| {
-                ui.set_width(ui.available_width());
+        egui::ScrollArea::vertical().id_salt("instances_list_scroll").show(ui, |ui| {
+            ui.set_width(ui.available_width());
 
-                let mut to_remove: Option<String> = None;
+            let mut to_remove: Option<String> = None;
 
-                for (display_idx, &idx) in sorted_indices.iter().enumerate() {
-                    let (name, meta) = &state.installed[idx];
-                    let is_busy = state.busy || state.busy_instances.contains(name);
-                    let is_running = state.running_instances.contains_key(name);
+            for (display_idx, &idx) in sorted_indices.iter().enumerate() {
+                let (name, meta) = &state.installed[idx];
+                let is_busy = state.busy || state.busy_instances.contains(name);
+                let is_running = state.running_instances.contains_key(name);
 
-                    let row_actions = instance_row(ui, name, meta, is_busy, is_running, display_idx % 2 == 1, lang);
+                let row_actions =
+                    instance_row(ui, name, meta, is_busy, is_running, display_idx % 2 == 1, lang);
 
-                    if row_actions.launch {
-                        handle.try_send(Command::LaunchInstance { name: name.clone() });
-                    }
-                    if row_actions.stop {
-                        handle.try_send(Command::StopInstance { name: name.clone() });
-                    }
-                    if row_actions.open_folder {
-                        let folder = std::path::Path::new("instances").join(name);
-                        open_folder(&folder, toasts_out);
-                    }
-                    if row_actions.delete {
-                        to_remove = Some(name.clone());
-                    }
-                    if row_actions.view_info {
-                        state.instance_panel = Some(InstancePanelState::new(name.clone(), InstancePanelTab::Info));
-                        handle.try_send(Command::GetInstance { name: name.clone() });
-                    }
-                    if row_actions.view_log {
-                        state.instance_panel = Some(InstancePanelState::new(name.clone(), InstancePanelTab::Log));
-                    }
+                if row_actions.launch {
+                    handle.try_send(Command::LaunchInstance {
+                        name: name.clone(),
+                    });
                 }
-
-                if let Some(name) = to_remove {
-                    state.confirm_remove = Some(name);
+                if row_actions.stop {
+                    handle.try_send(Command::StopInstance {
+                        name: name.clone(),
+                    });
                 }
-            });
+                if row_actions.open_folder {
+                    let folder = std::path::Path::new("instances").join(name);
+                    open_folder(&folder, toasts_out);
+                }
+                if row_actions.delete {
+                    to_remove = Some(name.clone());
+                }
+                if row_actions.view_info {
+                    state.instance_panel =
+                        Some(InstancePanelState::new(name.clone(), InstancePanelTab::Info));
+                    handle.try_send(Command::GetInstance {
+                        name: name.clone(),
+                    });
+                }
+                if row_actions.view_log {
+                    state.instance_panel =
+                        Some(InstancePanelState::new(name.clone(), InstancePanelTab::Log));
+                }
+            }
+
+            if let Some(name) = to_remove {
+                state.confirm_remove = Some(name);
+            }
+        });
     }
 
     // ── Delete confirmation modal ────────────────────────────────
@@ -486,7 +499,9 @@ pub fn render(
         ) {
             if confirmed {
                 state.busy_instances.insert(name.clone());
-                handle.try_send(Command::RemoveInstance { name: name.clone() });
+                handle.try_send(Command::RemoveInstance {
+                    name: name.clone(),
+                });
             }
             state.confirm_remove = None;
         }

@@ -61,10 +61,7 @@ fn extract_nested_zip() {
     assert!(extract_path.join("dir/subdir/deep").is_dir());
 
     // 5. Проверяем что файлы существуют и содержат правильные данные
-    assert_eq!(
-        fs::read_to_string(extract_path.join("dir/file_a.txt")).unwrap(),
-        "content a"
-    );
+    assert_eq!(fs::read_to_string(extract_path.join("dir/file_a.txt")).unwrap(), "content a");
     assert_eq!(
         fs::read_to_string(extract_path.join("dir/subdir/file_b.txt")).unwrap(),
         "content b"
@@ -119,7 +116,10 @@ fn extract_invalid_file() {
 
     // 5. Проверяем что ошибка имеет вариант Archive с правильным путём
     match result.unwrap_err() {
-        ComposerError::Archive { path, source: _ } => {
+        ComposerError::Archive {
+            path,
+            source: _,
+        } => {
             assert_eq!(path, archive_path, "путь в ошибке должен совпадать с путём архива");
         },
         other => panic!("ожидали ComposerError::Archive, получили: {other:?}"),
@@ -173,8 +173,5 @@ fn extract_preserves_content() {
         large_content.len(),
         "размер большого файла должен совпадать"
     );
-    assert_eq!(
-        extracted_large, large_content,
-        "содержимое большого файла должно совпадать"
-    );
+    assert_eq!(extracted_large, large_content, "содержимое большого файла должно совпадать");
 }

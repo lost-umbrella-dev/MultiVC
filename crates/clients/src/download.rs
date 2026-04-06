@@ -24,7 +24,10 @@ impl DownloadProgress {
 }
 
 pub trait ProgressSink: Send + Sync {
-    fn update(&self, progress: DownloadProgress);
+    fn update(
+        &self,
+        progress: DownloadProgress,
+    );
 }
 
 /// Начало валидации хэша для Item
@@ -35,7 +38,10 @@ pub fn validate_begin(item: &Item) -> Option<Box<dyn DynDigest>> {
 /// Финализация валидации хэша для Item.
 ///
 /// Возвращает `Ok(())` при совпадении, или `Err(got_hash)` с фактическим хэшем.
-pub fn validate_finish(item: &Item, hasher: Option<Box<dyn DynDigest>>) -> std::result::Result<(), Option<Hash>> {
+pub fn validate_finish(
+    item: &Item,
+    hasher: Option<Box<dyn DynDigest>>,
+) -> std::result::Result<(), Option<Hash>> {
     match (hasher, &item.hash) {
         (Some(h), Some(expected)) => {
             let digest = h.finalize();
@@ -79,14 +85,20 @@ where
         writer.write_all(&chunk).await?;
         downloaded += chunk.len() as u64;
         if let Some(progress) = progress {
-            progress.update(DownloadProgress { downloaded, total });
+            progress.update(DownloadProgress {
+                downloaded,
+                total,
+            });
         }
     }
 
     if let Err(got) = validate_finish(item, hasher) {
         let expected = item.hash.clone().unwrap();
         let got = got.unwrap_or_else(|| expected.clone());
-        return Err(ClientError::HashMismatch { expected, got });
+        return Err(ClientError::HashMismatch {
+            expected,
+            got,
+        });
     }
 
     Ok(())

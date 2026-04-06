@@ -22,7 +22,10 @@ pub const PARALLELISM: usize = 32;
         hash = %hash_value,
     ),
 )]
-pub async fn validate_dir_item<L>(hash_value: &Hash, item: &LockItem) -> Result<Option<ValidateReason>, ValidationError>
+pub async fn validate_dir_item<L>(
+    hash_value: &Hash,
+    item: &LockItem,
+) -> Result<Option<ValidateReason>, ValidationError>
 where
     L: Lock,
 {
@@ -37,12 +40,14 @@ where
 
             let path_for_hash = path;
             let hash_for_check = hash_value.clone();
-            let is_match = tokio::task::spawn_blocking(move || fs::hash_directory(&path_for_hash, &hash_for_check))
-                .await
-                .map_err(|e| ValidationError::Read {
-                    path: hash::item_path::<L>(hash_value),
-                    source: std::io::Error::other(e),
-                })??;
+            let is_match = tokio::task::spawn_blocking(move || {
+                fs::hash_directory(&path_for_hash, &hash_for_check)
+            })
+            .await
+            .map_err(|e| ValidationError::Read {
+                path: hash::item_path::<L>(hash_value),
+                source: std::io::Error::other(e),
+            })??;
 
             if is_match {
                 tracing::debug!("hash matched");
@@ -58,7 +63,10 @@ where
         },
         Err(error) => {
             tracing::error!(path = %path.display(), %error, "failed to read metadata");
-            Err(ValidationError::Read { path, source: error })
+            Err(ValidationError::Read {
+                path,
+                source: error,
+            })
         },
     }
 }

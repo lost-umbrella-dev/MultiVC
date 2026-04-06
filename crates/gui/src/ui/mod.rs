@@ -1,8 +1,4 @@
-//! GUI rendering library for MultiVC.
-//!
-//! Contains all UI rendering code: views, widgets, icons, i18n, toasts.
-//! Compiled as `dylib` for hot-reload during development,
-//! and as `rlib` for static linking in release builds.
+//! UI rendering: views, widgets, icons, i18n, toasts.
 
 pub mod download_tracker;
 pub mod icons;
@@ -60,31 +56,36 @@ pub struct RenderArgs<'a> {
 /// Main UI render function — called by the host each frame.
 ///
 /// Renders navigation, active tab, settings modal, and toasts.
-#[unsafe(no_mangle)]
-pub fn render_ui(ui: &mut egui::Ui, args: &mut RenderArgs) {
+pub fn render_ui(
+    ui: &mut egui::Ui,
+    args: &mut RenderArgs,
+) {
     let mut toasts_instance = toasts::create_toasts();
 
     let ctx = ui.ctx().clone();
 
     // Bottom panel — navigation bar
-    egui::Panel::bottom("nav_panel")
-        .resizable(false)
-        .default_size(30.0)
-        .show_inside(ui, |ui| {
-            views::sidebar::render(
-                ui,
-                args.current_tab,
-                &args.state.cores.downloads,
-                &mut args.state.settings,
-            );
-        });
+    egui::Panel::bottom("nav_panel").resizable(false).default_size(30.0).show_inside(ui, |ui| {
+        views::sidebar::render(
+            ui,
+            args.current_tab,
+            &args.state.cores.downloads,
+            &mut args.state.settings,
+        );
+    });
 
     // Central panel — active tab
     egui::CentralPanel::default().show_inside(ui, |ui| match *args.current_tab {
         Tab::Cores => {
             let lang = args.state.settings.lock.language;
-            let action =
-                views::cores_tab::render(ui, &ctx, &mut args.state.cores, args.handle, &mut toasts_instance, lang);
+            let action = views::cores_tab::render(
+                ui,
+                &ctx,
+                &mut args.state.cores,
+                args.handle,
+                &mut toasts_instance,
+                lang,
+            );
 
             if let Some(core_idx) = action.switch_to_instances_with_core {
                 *args.current_tab = Tab::Instances;

@@ -10,7 +10,10 @@ use crate::error::ValidationError;
 pub use super::hash::item_path;
 
 /// Вычисляет хеш директории и сравнивает с заданным
-pub fn hash_directory(path: &Path, hash: &Hash) -> std::result::Result<bool, ValidationError> {
+pub fn hash_directory(
+    path: &Path,
+    hash: &Hash,
+) -> std::result::Result<bool, ValidationError> {
     let mut hasher = hash.hasher();
     hash_directory_into(path, path, hasher.as_mut())?;
     Ok(hash.verify_digest(&hasher.finalize()))

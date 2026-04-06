@@ -35,7 +35,13 @@ pub struct Version {
 
 impl Version {
     /// Создаёт версию с заданными компонентами.
-    pub fn new(prefix: Option<String>, major: u8, minor: u8, patch: u8, suffix: Option<String>) -> Self {
+    pub fn new(
+        prefix: Option<String>,
+        major: u8,
+        minor: u8,
+        patch: u8,
+        suffix: Option<String>,
+    ) -> Self {
         Self {
             prefix,
             major,
@@ -59,7 +65,10 @@ impl Version {
 // ── Display ──────────────────────────────────────────────────────────
 
 impl fmt::Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         if let Some(ref prefix) = self.prefix {
             write!(f, "{prefix}")?;
         }
@@ -74,13 +83,19 @@ impl fmt::Display for Version {
 // ── Ord ─────────────────────────────────────────────────────────────
 
 impl PartialOrd for Version {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(
+        &self,
+        other: &Self,
+    ) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
 impl Ord for Version {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    fn cmp(
+        &self,
+        other: &Self,
+    ) -> std::cmp::Ordering {
         self.major
             .cmp(&other.major)
             .then(self.minor.cmp(&other.minor))
@@ -103,9 +118,8 @@ impl FromStr for Version {
         }
 
         // 1. Отделяем prefix — всё до первой ASCII-цифры.
-        let digit_start = s
-            .find(|c: char| c.is_ascii_digit())
-            .ok_or(VersionParseError::NoDigits)?;
+        let digit_start =
+            s.find(|c: char| c.is_ascii_digit()).ok_or(VersionParseError::NoDigits)?;
 
         let prefix = if digit_start > 0 {
             Some(s[..digit_start].to_owned())
@@ -138,26 +152,20 @@ impl FromStr for Version {
             });
         }
 
-        let major = parts[0]
-            .parse::<u8>()
-            .map_err(|_| VersionParseError::ComponentOverflow {
-                component: "major",
-                value: parts[0].to_owned(),
-            })?;
+        let major = parts[0].parse::<u8>().map_err(|_| VersionParseError::ComponentOverflow {
+            component: "major",
+            value: parts[0].to_owned(),
+        })?;
 
-        let minor = parts[1]
-            .parse::<u8>()
-            .map_err(|_| VersionParseError::ComponentOverflow {
-                component: "minor",
-                value: parts[1].to_owned(),
-            })?;
+        let minor = parts[1].parse::<u8>().map_err(|_| VersionParseError::ComponentOverflow {
+            component: "minor",
+            value: parts[1].to_owned(),
+        })?;
 
-        let patch = parts[2]
-            .parse::<u8>()
-            .map_err(|_| VersionParseError::ComponentOverflow {
-                component: "patch",
-                value: parts[2].to_owned(),
-            })?;
+        let patch = parts[2].parse::<u8>().map_err(|_| VersionParseError::ComponentOverflow {
+            component: "patch",
+            value: parts[2].to_owned(),
+        })?;
 
         Ok(Version {
             prefix,
@@ -181,19 +189,32 @@ pub enum VersionParseError {
     /// Суффикс после `-` пуст.
     EmptySuffix,
     /// Неверный формат (не 3 компоненты через `.`).
-    InvalidFormat { detail: String },
+    InvalidFormat {
+        detail: String,
+    },
     /// Компонента не помещается в `u8` (0..=255).
-    ComponentOverflow { component: &'static str, value: String },
+    ComponentOverflow {
+        component: &'static str,
+        value: String,
+    },
 }
 
 impl fmt::Display for VersionParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
             Self::Empty => write!(f, "version string is empty"),
             Self::NoDigits => write!(f, "version string contains no digits"),
             Self::EmptySuffix => write!(f, "suffix after '-' is empty"),
-            Self::InvalidFormat { detail } => write!(f, "invalid version format: {detail}"),
-            Self::ComponentOverflow { component, value } => {
+            Self::InvalidFormat {
+                detail,
+            } => write!(f, "invalid version format: {detail}"),
+            Self::ComponentOverflow {
+                component,
+                value,
+            } => {
                 write!(f, "{component} component '{value}' is not a valid u8 (0..=255)")
             },
         }
@@ -205,7 +226,10 @@ impl std::error::Error for VersionParseError {}
 // ── Serde ────────────────────────────────────────────────────────────
 
 impl Serialize for Version {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -383,7 +407,10 @@ mod tests {
         let err = "v256.0.0".parse::<Version>().unwrap_err();
         assert!(matches!(
             err,
-            VersionParseError::ComponentOverflow { component: "major", .. }
+            VersionParseError::ComponentOverflow {
+                component: "major",
+                ..
+            }
         ));
     }
 

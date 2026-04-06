@@ -42,7 +42,9 @@ async fn save_then_load_roundtrip() {
 
     // 3. Заполняем CoresLock тремя элементами
     let (map, pairs) = make_lock_map(3);
-    let lock = CoresLock { items: map };
+    let lock = CoresLock {
+        items: map,
+    };
 
     // 4. Сохраняем на диск
     lock.save().await.expect("save() не должен завершиться ошибкой");
@@ -69,18 +71,12 @@ async fn save_then_load_roundtrip() {
             .items()
             .get(hash)
             .unwrap_or_else(|| panic!("элемент с хэшем {hash} должен присутствовать после load()"));
-        assert_eq!(
-            loaded_item.item.name, original_item.item.name,
-            "имя элемента должно совпадать"
-        );
+        assert_eq!(loaded_item.item.name, original_item.item.name, "имя элемента должно совпадать");
         assert_eq!(
             loaded_item.item.version, original_item.item.version,
             "версия элемента должна совпадать"
         );
-        assert_eq!(
-            loaded_item.item.url, original_item.item.url,
-            "URL элемента должен совпадать"
-        );
+        assert_eq!(loaded_item.item.url, original_item.item.url, "URL элемента должен совпадать");
     }
 
     // Восстанавливаем cwd
@@ -124,9 +120,7 @@ async fn load_nonexistent_creates_default() {
     );
 
     // 7. Повторный load() должен успешно прочитать пустой файл
-    let reloaded = CoresLock::load()
-        .await
-        .expect("повторный load() не должен завершиться ошибкой");
+    let reloaded = CoresLock::load().await.expect("повторный load() не должен завершиться ошибкой");
     assert_eq!(reloaded.items().len(), 0, "повторный load() должен вернуть пустой lock");
 
     // Восстанавливаем cwd
@@ -186,7 +180,9 @@ async fn remove_existing_item() {
     // 3. Создаём CoresLock с одним элементом
     let hash = fake_hash("abcdef1234567890");
     let lock_item = make_lock_item("test-core", "2.0.0");
-    let lock = CoresLock { items: LockMap::new() };
+    let lock = CoresLock {
+        items: LockMap::new(),
+    };
     lock.items().insert(hash.clone(), lock_item.clone());
 
     // 4. Создаём директорию элемента на диске (как если бы он был скачан)
@@ -196,14 +192,8 @@ async fn remove_existing_item() {
     assert!(dir_path.exists(), "директория элемента должна существовать до remove()");
 
     // 5. Вызываем remove() — должен вернуть Some(item)
-    let removed = lock
-        .remove(&hash)
-        .await
-        .expect("remove() не должен завершиться ошибкой");
-    assert!(
-        removed.is_some(),
-        "remove() должен вернуть Some для существующего элемента"
-    );
+    let removed = lock.remove(&hash).await.expect("remove() не должен завершиться ошибкой");
+    assert!(removed.is_some(), "remove() должен вернуть Some для существующего элемента");
 
     // 6. Проверяем что возвращённый элемент совпадает с оригиналом
     let removed_item = removed.unwrap();
@@ -220,10 +210,7 @@ async fn remove_existing_item() {
     assert_eq!(lock.items().len(), 0, "после remove() в lock не должно быть элементов");
 
     // 8. Проверяем что директория элемента удалена с диска
-    assert!(
-        !dir_path.exists(),
-        "директория элемента должна быть удалена после remove()"
-    );
+    assert!(!dir_path.exists(), "директория элемента должна быть удалена после remove()");
 
     // Восстанавливаем cwd
     std::env::set_current_dir(&original_dir).unwrap();
@@ -246,7 +233,9 @@ async fn remove_nonexistent_item() {
     std::fs::create_dir_all("cores").unwrap();
 
     // 3. Создаём пустой CoresLock
-    let lock = CoresLock { items: LockMap::new() };
+    let lock = CoresLock {
+        items: LockMap::new(),
+    };
 
     // 4. Пытаемся удалить несуществующий элемент
     let hash = fake_hash("nonexistent_hash_value");
@@ -256,10 +245,7 @@ async fn remove_nonexistent_item() {
         .expect("remove() не должен завершиться ошибкой даже для несуществующего элемента");
 
     // 5. Проверяем что результат — None
-    assert!(
-        removed.is_none(),
-        "remove() должен вернуть None для несуществующего элемента"
-    );
+    assert!(removed.is_none(), "remove() должен вернуть None для несуществующего элемента");
 
     // 6. Проверяем что lock по-прежнему пуст
     assert_eq!(
@@ -281,17 +267,20 @@ async fn dashmap_serde_roundtrip() {
 
     // 1. Создаём CoresLock с несколькими элементами
     let (map, pairs) = make_lock_map(4);
-    let lock = CoresLock { items: map };
+    let lock = CoresLock {
+        items: map,
+    };
 
     // 2. Сериализуем в TOML-строку
-    let toml_str = toml::to_string_pretty(&lock).expect("сериализация CoresLock в TOML не должна завершиться ошибкой");
+    let toml_str = toml::to_string_pretty(&lock)
+        .expect("сериализация CoresLock в TOML не должна завершиться ошибкой");
 
     // 3. Проверяем что TOML-строка не пустая
     assert!(!toml_str.is_empty(), "сериализованный TOML не должен быть пустым");
 
     // 4. Десериализуем обратно в CoresLock
-    let deserialized: CoresLock =
-        toml::from_str(&toml_str).expect("десериализация CoresLock из TOML не должна завершиться ошибкой");
+    let deserialized: CoresLock = toml::from_str(&toml_str)
+        .expect("десериализация CoresLock из TOML не должна завершиться ошибкой");
 
     // 5. Проверяем что количество элементов совпадает
     assert_eq!(
@@ -302,10 +291,9 @@ async fn dashmap_serde_roundtrip() {
 
     // 6. Проверяем каждый элемент по ключу
     for (hash, original_item) in &pairs {
-        let loaded_item = deserialized
-            .items()
-            .get(hash)
-            .unwrap_or_else(|| panic!("элемент с хэшем {hash} должен присутствовать после десериализации"));
+        let loaded_item = deserialized.items().get(hash).unwrap_or_else(|| {
+            panic!("элемент с хэшем {hash} должен присутствовать после десериализации")
+        });
         assert_eq!(
             loaded_item.item.name, original_item.item.name,
             "имя элемента должно совпадать после TOML round-trip"

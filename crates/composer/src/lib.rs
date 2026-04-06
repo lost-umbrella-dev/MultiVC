@@ -78,7 +78,9 @@ impl Composer {
         Self {
             clients,
             instances: InstancesLock::default(),
-            cores: CoresLock { items: LockMap::new() },
+            cores: CoresLock {
+                items: LockMap::new(),
+            },
             // contents: ContentsLock { items: LockMap::new() },
         }
     }
@@ -145,7 +147,10 @@ impl Composer {
     /// Резолвит хэш ядра в человекочитаемую версию (например `"v0.31.1"`).
     ///
     /// Возвращает `None` если ядро с таким хэшем не найдено в lock.
-    pub fn resolve_core_version(&self, hash: &Hash) -> Option<String> {
+    pub fn resolve_core_version(
+        &self,
+        hash: &Hash,
+    ) -> Option<String> {
         self.cores.items().get(hash).map(|entry| entry.item.version.to_string())
     }
 
@@ -154,7 +159,8 @@ impl Composer {
     /// Один вызов вместо `cores_items()` + N × `instances_using_core()`.
     pub async fn cores_with_dependents(&self) -> Result<Vec<CoreInfo>> {
         // Собираем все инстансы и их core_version за один проход
-        let mut core_to_instances: std::collections::HashMap<Hash, Vec<String>> = std::collections::HashMap::new();
+        let mut core_to_instances: std::collections::HashMap<Hash, Vec<String>> =
+            std::collections::HashMap::new();
 
         for entry in self.instances.items().iter() {
             let name = entry.key().clone();
@@ -228,10 +234,17 @@ impl Composer {
     /// 5. Сохраняет lock на диск.
     ///
     /// TODO: после добавления клиентов зависимостей реализовать доставку зависимостей в instance
-    pub async fn create_instance(&self, name: String, config: Instance, meta: InstancesItem) -> Result<()> {
+    pub async fn create_instance(
+        &self,
+        name: String,
+        config: Instance,
+        meta: InstancesItem,
+    ) -> Result<()> {
         // Уникальность имени
         if self.instances.items().contains_key(&name) {
-            return Err(ComposerError::InstanceAlreadyExists { name });
+            return Err(ComposerError::InstanceAlreadyExists {
+                name,
+            });
         }
 
         let instance_dir = Path::new(InstancesLock::FOLDER).join(&name);
@@ -252,9 +265,14 @@ impl Composer {
     /// Читает конфигурацию инстанса (`instance.toml`) по имени.
     ///
     /// Возвращает [`ComposerError::InstanceNotFound`] если инстанс не зарегистрирован в lock.
-    pub async fn get_instance(&self, name: &str) -> Result<Instance> {
+    pub async fn get_instance(
+        &self,
+        name: &str,
+    ) -> Result<Instance> {
         if !self.instances.items().contains_key(name) {
-            return Err(ComposerError::InstanceNotFound { name: name.to_owned() });
+            return Err(ComposerError::InstanceNotFound {
+                name: name.to_owned(),
+            });
         }
 
         let config_path = Path::new(InstancesLock::FOLDER).join(name).join(INSTANCE_CONFIG_NAME);
@@ -270,9 +288,16 @@ impl Composer {
     /// Lock-файл сохраняется автоматически.
     ///
     /// Возвращает [`ComposerError::InstanceNotFound`] если инстанс не зарегистрирован.
-    pub async fn edit_instance(&self, name: &str, config: Instance, meta: InstancesItem) -> Result<()> {
+    pub async fn edit_instance(
+        &self,
+        name: &str,
+        config: Instance,
+        meta: InstancesItem,
+    ) -> Result<()> {
         if !self.instances.items().contains_key(name) {
-            return Err(ComposerError::InstanceNotFound { name: name.to_owned() });
+            return Err(ComposerError::InstanceNotFound {
+                name: name.to_owned(),
+            });
         }
 
         // Перезаписываем instance.toml
@@ -294,7 +319,10 @@ impl Composer {
     /// должен вызвать [`save_instances()`](Self::save_instances) после.
     ///
     /// Возвращает удалённый элемент, или `None` если элемент не найден.
-    pub async fn remove_instance(&self, name: &str) -> Result<Option<InstancesItem>> {
+    pub async fn remove_instance(
+        &self,
+        name: &str,
+    ) -> Result<Option<InstancesItem>> {
         self.instances.remove(name).await
     }
 }
@@ -303,7 +331,10 @@ impl Composer {
 
 impl Composer {
     /// Возвращает имена инстансов, чей `core_version` совпадает с `hash`.
-    pub async fn instances_using_core(&self, hash: &Hash) -> Result<Vec<String>> {
+    pub async fn instances_using_core(
+        &self,
+        hash: &Hash,
+    ) -> Result<Vec<String>> {
         let mut dependents = Vec::new();
         for entry in self.instances.items().iter() {
             let name = entry.key().clone();
@@ -348,7 +379,10 @@ impl Composer {
     /// должен вызвать [`save_cores()`](Self::save_cores) после.
     ///
     /// Возвращает удалённый элемент, или `None` если элемент не найден.
-    pub async fn remove_core(&self, hash: &Hash) -> Result<Option<LockItem>> {
+    pub async fn remove_core(
+        &self,
+        hash: &Hash,
+    ) -> Result<Option<LockItem>> {
         let dependents = self.instances_using_core(hash).await?;
         if !dependents.is_empty() {
             return Err(ComposerError::CoreInUse {
@@ -389,9 +423,14 @@ impl Composer {
     /// - `--res <абсолютный путь к папке res ядра>`
     ///
     /// Возвращает [`ComposerError::InstanceNotFound`] если инстанс не зарегистрирован.
-    pub async fn build_launch_args(&self, name: &str) -> Result<Vec<String>> {
+    pub async fn build_launch_args(
+        &self,
+        name: &str,
+    ) -> Result<Vec<String>> {
         if !self.instances.items().contains_key(name) {
-            return Err(ComposerError::InstanceNotFound { name: name.to_owned() });
+            return Err(ComposerError::InstanceNotFound {
+                name: name.to_owned(),
+            });
         }
 
         let instance = self.get_instance(name).await?;
@@ -421,9 +460,14 @@ impl Composer {
     ///
     /// - [`ComposerError::InstanceNotFound`] — инстанс не зарегистрирован.
     /// - [`ComposerError::LaunchExeNotFound`] — исполняемый файл ядра не найден на диске.
-    pub async fn launch_instance_cmd(&self, name: &str) -> Result<tokio::process::Command> {
+    pub async fn launch_instance_cmd(
+        &self,
+        name: &str,
+    ) -> Result<tokio::process::Command> {
         if !self.instances.items().contains_key(name) {
-            return Err(ComposerError::InstanceNotFound { name: name.to_owned() });
+            return Err(ComposerError::InstanceNotFound {
+                name: name.to_owned(),
+            });
         }
 
         let instance = self.get_instance(name).await?;
@@ -477,7 +521,10 @@ impl Composer {
     /// Для перехвата stdout/stderr используйте
     /// [`launch_instance_cmd`](Self::launch_instance_cmd),
     /// настройте `Stdio::piped()` и вызовите `.spawn()` вручную.
-    pub async fn launch_instance(&self, name: &str) -> Result<tokio::process::Child> {
+    pub async fn launch_instance(
+        &self,
+        name: &str,
+    ) -> Result<tokio::process::Child> {
         let mut cmd = self.launch_instance_cmd(name).await?;
         let child = cmd.spawn()?;
         tracing::info!(instance = %name, pid = ?child.id(), "instance process spawned");

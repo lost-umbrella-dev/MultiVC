@@ -118,7 +118,10 @@ impl InstancesLock {
     ///
     /// Возвращает удалённый элемент, или `None` если не найден.
     /// Lock-файл **не** сохраняется автоматически.
-    pub async fn remove(&self, name: &str) -> Result<Option<InstancesItem>> {
+    pub async fn remove(
+        &self,
+        name: &str,
+    ) -> Result<Option<InstancesItem>> {
         let span = tracing::debug_span!(
             parent: &Self::span(),
             "lock.remove",

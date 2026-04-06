@@ -29,21 +29,30 @@ impl ProgressRing {
 
     /// Set the radius of the ring.
     #[allow(dead_code)]
-    pub fn radius(mut self, radius: f32) -> Self {
+    pub fn radius(
+        mut self,
+        radius: f32,
+    ) -> Self {
         self.radius = radius;
         self
     }
 
     /// Set the stroke width of the ring.
     #[allow(dead_code)]
-    pub fn stroke_width(mut self, stroke_width: f32) -> Self {
+    pub fn stroke_width(
+        mut self,
+        stroke_width: f32,
+    ) -> Self {
         self.stroke_width = stroke_width;
         self
     }
 }
 
 impl egui::Widget for ProgressRing {
-    fn ui(self, ui: &mut egui::Ui) -> egui::Response {
+    fn ui(
+        self,
+        ui: &mut egui::Ui,
+    ) -> egui::Response {
         let desired_size = Vec2::splat(self.radius * 2.0 + self.stroke_width);
         let (rect, response) = ui.allocate_exact_size(desired_size, egui::Sense::hover());
 
@@ -101,7 +110,14 @@ impl egui::Widget for ProgressRing {
 }
 
 /// Draws an arc on the painter using line segments.
-fn draw_arc(painter: &egui::Painter, center: Pos2, radius: f32, start_angle: f32, end_angle: f32, stroke: Stroke) {
+fn draw_arc(
+    painter: &egui::Painter,
+    center: Pos2,
+    radius: f32,
+    start_angle: f32,
+    end_angle: f32,
+    stroke: Stroke,
+) {
     let segments = 32;
     let delta = (end_angle - start_angle) / segments as f32;
     let points: Vec<Pos2> = (0..=segments)

@@ -5,6 +5,7 @@
 //! [`ComposerWorker`] в фоновом потоке и открывает окно eframe/egui.
 
 mod app;
+mod ui;
 
 use app::App;
 use clients::{Clients, github::GithubClient};
@@ -18,7 +19,7 @@ fn loum_icon() -> Option<eframe::egui::IconData> {
     const ICON_SIZE: u32 = 64;
 
     let opt = resvg::usvg::Options::default();
-    let tree = resvg::usvg::Tree::from_data(gui_ui::icons::LOUM.as_bytes(), &opt).ok()?;
+    let tree = resvg::usvg::Tree::from_data(ui::icons::LOUM.as_bytes(), &opt).ok()?;
 
     let mut pixmap = resvg::tiny_skia::Pixmap::new(ICON_SIZE, ICON_SIZE)?;
     let svg_size = tree.size();
@@ -48,8 +49,8 @@ fn loum_icon() -> Option<eframe::egui::IconData> {
 
 fn main() -> eframe::Result<()> {
     // ── Tracing ──────────────────────────────────────────────────
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("warn,clients=debug,composer=debug,gui=debug"));
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,winit=info"));
 
     let layer = HierarchicalLayer::new(2)
         .with_ansi(true)
@@ -61,7 +62,7 @@ fn main() -> eframe::Result<()> {
 
     let subscriber = tracing_subscriber::registry().with(layer);
 
-    let _guard = tracing::subscriber::set_default(subscriber);
+    tracing::subscriber::set_global_default(subscriber).expect("failed to set tracing subscriber");
 
     tracing::info!("запуск MultiVC GUI");
 
@@ -73,8 +74,8 @@ fn main() -> eframe::Result<()> {
 
     // ── Composer ─────────────────────────────────────────────────
     let composer = runtime.block_on(async {
-        let github =
-            GithubClient::new("MihailRis".to_owned(), "VoxelCore".to_owned()).expect("не удалось создать GithubClient");
+        let github = GithubClient::new("MihailRis".to_owned(), "VoxelCore".to_owned())
+            .expect("не удалось создать GithubClient");
         let clients = Clients::new(github);
 
         // Пытаемся загрузить lock-файлы; при первом запуске создадутся пустые

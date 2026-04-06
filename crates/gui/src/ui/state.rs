@@ -9,7 +9,7 @@ use composer::lock::ValidateReason;
 use composer::lock::instance::Instance;
 use composer::lock::instances::{InstanceValidateReason, InstancesItem};
 
-use crate::download_tracker::DownloadTracker;
+use crate::ui::download_tracker::DownloadTracker;
 
 // ── Sort state ───────────────────────────────────────────────────────
 
@@ -72,13 +72,16 @@ pub struct InstancePanelState {
     pub edit_icon: Option<String>,
     pub edit_banner: Option<String>,
     /// In-flight icon pick task.
-    pub icon_pick: Option<crate::widgets::ImagePickTask>,
+    pub icon_pick: Option<crate::ui::widgets::ImagePickTask>,
     /// In-flight banner pick task.
-    pub banner_pick: Option<crate::widgets::ImagePickTask>,
+    pub banner_pick: Option<crate::ui::widgets::ImagePickTask>,
 }
 
 impl InstancePanelState {
-    pub fn new(name: String, tab: InstancePanelTab) -> Self {
+    pub fn new(
+        name: String,
+        tab: InstancePanelTab,
+    ) -> Self {
         Self {
             name,
             tab,
@@ -99,7 +102,7 @@ impl InstancePanelState {
 
 /// Settings state — persisted settings and modal state.
 pub struct SettingsState {
-    pub lock: crate::settings::SettingsLock,
+    pub lock: crate::ui::settings::SettingsLock,
     /// Whether the settings modal is currently open.
     pub open: bool,
 }
@@ -107,7 +110,7 @@ pub struct SettingsState {
 impl Default for SettingsState {
     fn default() -> Self {
         Self {
-            lock: crate::settings::SettingsLock::load(),
+            lock: crate::ui::settings::SettingsLock::load(),
             open: false,
         }
     }

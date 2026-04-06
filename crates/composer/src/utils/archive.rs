@@ -6,7 +6,10 @@ use crate::error::{ArchiveError, ComposerError};
 ///
 /// Использует `enclosed_name()`, чтобы игнорировать небезопасные пути
 /// внутри архива, например содержащие попытки выйти за пределы целевой папки.
-pub fn extract_zip(archive_path: &Path, extract_path: &Path) -> Result<(), ComposerError> {
+pub fn extract_zip(
+    archive_path: &Path,
+    extract_path: &Path,
+) -> Result<(), ComposerError> {
     let do_extract = || -> Result<(), ArchiveError> {
         let file = std::fs::File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)?;
@@ -52,7 +55,10 @@ pub fn extract_zip(archive_path: &Path, extract_path: &Path) -> Result<(), Compo
 ///
 /// Возвращает `Ok(true)` если `res/` была найдена и извлечена,
 /// `Ok(false)` если `res/` отсутствует в архиве.
-pub fn extract_res_from_zip(archive_path: &Path, extract_path: &Path) -> Result<bool, ComposerError> {
+pub fn extract_res_from_zip(
+    archive_path: &Path,
+    extract_path: &Path,
+) -> Result<bool, ComposerError> {
     let do_extract = || -> Result<bool, ArchiveError> {
         let file = std::fs::File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)?;

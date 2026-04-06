@@ -131,7 +131,10 @@ struct BridgeSink {
 }
 
 impl ProgressSink for BridgeSink {
-    fn update(&self, progress: DownloadProgress) {
+    fn update(
+        &self,
+        progress: DownloadProgress,
+    ) {
         self.inner.downloaded.store(progress.downloaded, Ordering::Relaxed);
 
         if let Some(total) = progress.total {
@@ -163,7 +166,11 @@ impl ProgressBridge {
 
         DownloadProgress {
             downloaded,
-            total: if total == 0 { None } else { Some(total) },
+            total: if total == 0 {
+                None
+            } else {
+                Some(total)
+            },
         }
     }
 
@@ -175,7 +182,11 @@ impl ProgressBridge {
     /// Общий размер (если известен).
     pub fn total(&self) -> Option<u64> {
         let v = self.inner.total.load(Ordering::Relaxed);
-        if v == 0 { None } else { Some(v) }
+        if v == 0 {
+            None
+        } else {
+            Some(v)
+        }
     }
 
     /// Доля выполнения `0.0..=1.0`, или `None` если total неизвестен.

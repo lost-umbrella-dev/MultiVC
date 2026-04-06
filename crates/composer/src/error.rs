@@ -24,11 +24,15 @@ pub enum ComposerError {
         source: ArchiveError,
     },
     #[error("Core executable not found in `{path}`")]
-    CoreExecutableNotFound { path: PathBuf },
+    CoreExecutableNotFound {
+        path: PathBuf,
+    },
     #[error("Item is missing `zipball_url`, required for resource extraction")]
     ZipballUrlMissing,
     #[error("Resource directory `res/` not found in zipball archive `{path}`")]
-    ResNotFound { path: PathBuf },
+    ResNotFound {
+        path: PathBuf,
+    },
     #[error("Core `{hash}` is still used by {count} instance(s): {instances}",
         count = dependents.len(),
         instances = dependents.join(", ")
@@ -38,11 +42,18 @@ pub enum ComposerError {
         dependents: Vec<String>,
     },
     #[error("Instance `{name}` already exists")]
-    InstanceAlreadyExists { name: String },
+    InstanceAlreadyExists {
+        name: String,
+    },
     #[error("Instance `{name}` not found")]
-    InstanceNotFound { name: String },
+    InstanceNotFound {
+        name: String,
+    },
     #[error("Failed to launch instance `{name}`: core executable not found at `{exe_path}`")]
-    LaunchExeNotFound { name: String, exe_path: std::path::PathBuf },
+    LaunchExeNotFound {
+        name: String,
+        exe_path: std::path::PathBuf,
+    },
 }
 
 #[derive(Error, Debug)]

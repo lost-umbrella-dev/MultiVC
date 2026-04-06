@@ -29,8 +29,8 @@ static CWD_LOCK: Mutex<()> = Mutex::const_new(());
 
 /// Создаёт реальный `GithubClient` для репозитория VoxelCore.
 fn real_clients() -> Clients {
-    let github =
-        GithubClient::new("MihailRis".to_owned(), "voxelcore".to_owned()).expect("не удалось создать GithubClient");
+    let github = GithubClient::new("MihailRis".to_owned(), "voxelcore".to_owned())
+        .expect("не удалось создать GithubClient");
     Clients::new(github)
 }
 
@@ -75,7 +75,9 @@ async fn install_latest_core_full_pipeline() {
     info!("получаем список доступных версий ядер...");
     let items = clients
         .core
-        .list(GitHubListOptions { search_version: vec![] })
+        .list(GitHubListOptions {
+            search_version: vec![],
+        })
         .await
         .expect("не удалось получить список релизов с GitHub");
 
@@ -83,10 +85,7 @@ async fn install_latest_core_full_pipeline() {
 
     // 6. Берём последнюю (первую в списке) версию — если для текущей ОС нет ассета, пропускаем тест
     if items.is_empty() {
-        info!(
-            os = std::env::consts::OS,
-            "нет подходящего ассета для текущей ОС — тест пропущен"
-        );
+        info!(os = std::env::consts::OS, "нет подходящего ассета для текущей ОС — тест пропущен");
         std::env::set_current_dir(&original_dir).expect("не удалось восстановить cwd");
         return;
     }
@@ -130,11 +129,8 @@ async fn install_latest_core_full_pipeline() {
     );
 
     // 11. Извлекаем хэш и lock-item установленного ядра
-    let entry = composer
-        .cores_items()
-        .iter()
-        .next()
-        .expect("cores_items пуст после успешной установки");
+    let entry =
+        composer.cores_items().iter().next().expect("cores_items пуст после успешной установки");
     let hash = entry.key().clone();
     let lock_item = entry.value().clone();
     drop(entry);
@@ -147,27 +143,13 @@ async fn install_latest_core_full_pipeline() {
     );
 
     // 12. Проверяем что метаданные совпадают с исходным Item
-    assert_eq!(
-        lock_item.item.name, latest.name,
-        "имя в lock должно совпадать с исходным"
-    );
-    assert_eq!(
-        lock_item.item.version, latest.version,
-        "версия в lock должна совпадать с исходной"
-    );
+    assert_eq!(lock_item.item.name, latest.name, "имя в lock должно совпадать с исходным");
+    assert_eq!(lock_item.item.version, latest.version, "версия в lock должна совпадать с исходной");
 
     // 13. Проверяем что директория ядра существует на диске
     let core_dir = composer::utils::hash::item_path::<composer::lock::core::CoresLock>(&hash);
-    assert!(
-        core_dir.exists(),
-        "директория ядра должна существовать: {}",
-        core_dir.display()
-    );
-    assert!(
-        core_dir.is_dir(),
-        "путь ядра должен быть директорией: {}",
-        core_dir.display()
-    );
+    assert!(core_dir.exists(), "директория ядра должна существовать: {}", core_dir.display());
+    assert!(core_dir.is_dir(), "путь ядра должен быть директорией: {}", core_dir.display());
     info!(path = %core_dir.display(), "директория ядра на диске");
 
     // 14. Проверяем что исполняемый файл переименован в core.{ext}
@@ -178,17 +160,12 @@ async fn install_latest_core_full_pipeline() {
         "исполняемый файл `{executable_name}` должен существовать в {}",
         core_dir.display()
     );
-    assert!(
-        executable_path.is_file(),
-        "`{executable_name}` должен быть файлом, а не директорией"
-    );
+    assert!(executable_path.is_file(), "`{executable_name}` должен быть файлом, а не директорией");
 
     // 15. Проверяем что файл не пустой
-    let metadata = std::fs::metadata(&executable_path).expect("не удалось получить метаданные исполняемого файла");
-    assert!(
-        metadata.len() > 0,
-        "исполняемый файл `{executable_name}` не должен быть пустым"
-    );
+    let metadata = std::fs::metadata(&executable_path)
+        .expect("не удалось получить метаданные исполняемого файла");
+    assert!(metadata.len() > 0, "исполняемый файл `{executable_name}` не должен быть пустым");
     info!(
         file = %executable_name,
         size = metadata.len(),
@@ -212,10 +189,7 @@ async fn install_latest_core_full_pipeline() {
     info!(lock_size = lock_content.len(), "lock-файл записан");
 
     // 18. Валидируем — хэш директории должен совпадать с записанным в lock
-    let reasons = composer
-        .validate_cores()
-        .await
-        .expect("validate_cores() не должен падать");
+    let reasons = composer.validate_cores().await.expect("validate_cores() не должен падать");
     assert!(
         reasons.is_empty(),
         "валидация ядер не должна выявить проблем, но найдено: {} причин",

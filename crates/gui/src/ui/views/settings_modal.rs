@@ -3,7 +3,7 @@
 use eframe::egui;
 use eframe::egui::Align2;
 
-use crate::state::SettingsState;
+use crate::ui::state::SettingsState;
 
 /// Renders the settings modal window.
 ///
@@ -22,17 +22,17 @@ pub fn render(
     let lang = state.lock.language;
     let mut open = true;
 
-    egui::Window::new(crate::lang::t("settings.title", lang))
+    egui::Window::new(crate::ui::lang::t("settings.title", lang))
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
         .open(&mut open)
         .show(ui.ctx(), |ui| {
             // ── Build info ──────────────────────────────────────
-            ui.heading(crate::lang::t("settings.build_info", lang));
+            ui.heading(crate::ui::lang::t("settings.build_info", lang));
             ui.label(format!(
                 "{}: {}",
-                crate::lang::t("settings.version", lang),
+                crate::ui::lang::t("settings.version", lang),
                 env!("CARGO_PKG_VERSION")
             ));
             ui.label(format!("Build: {}", env!("BUILD_TIMESTAMP")));
@@ -43,14 +43,14 @@ pub fn render(
             ui.horizontal(|ui| {
                 ui.label(format!(
                     "{}: {}",
-                    crate::lang::t("settings.cores_count", lang),
+                    crate::ui::lang::t("settings.cores_count", lang),
                     cores_count,
                 ));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    crate::widgets::open_folder_button(
+                    crate::ui::widgets::open_folder_button(
                         ui,
                         "cores",
-                        crate::lang::t("settings.open_cores", lang),
+                        crate::ui::lang::t("settings.open_cores", lang),
                         toasts,
                     );
                 });
@@ -60,14 +60,14 @@ pub fn render(
             ui.horizontal(|ui| {
                 ui.label(format!(
                     "{}: {}",
-                    crate::lang::t("settings.instances_count", lang),
+                    crate::ui::lang::t("settings.instances_count", lang),
                     instances_count,
                 ));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    crate::widgets::open_folder_button(
+                    crate::ui::widgets::open_folder_button(
                         ui,
                         "instances",
-                        crate::lang::t("settings.open_instances", lang),
+                        crate::ui::lang::t("settings.open_instances", lang),
                         toasts,
                     );
                 });
@@ -75,19 +75,24 @@ pub fn render(
 
             // Launcher root folder
             ui.horizontal(|ui| {
-                ui.label(crate::lang::t("settings.open_root", lang));
+                ui.label(crate::ui::lang::t("settings.open_root", lang));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    crate::widgets::open_folder_button(ui, ".", crate::lang::t("settings.open_root", lang), toasts);
+                    crate::ui::widgets::open_folder_button(
+                        ui,
+                        ".",
+                        crate::ui::lang::t("settings.open_root", lang),
+                        toasts,
+                    );
                 });
             });
 
             ui.separator();
 
             // ── Language selector ────────────────────────────────
-            ui.heading(crate::lang::t("settings.language", lang));
+            ui.heading(crate::ui::lang::t("settings.language", lang));
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut state.lock.language, crate::lang::Lang::En, "EN");
-                ui.selectable_value(&mut state.lock.language, crate::lang::Lang::Ru, "RU");
+                ui.selectable_value(&mut state.lock.language, crate::ui::lang::Lang::En, "EN");
+                ui.selectable_value(&mut state.lock.language, crate::ui::lang::Lang::Ru, "RU");
             });
         });
 

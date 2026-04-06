@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SettingsLock {
     #[serde(default)]
-    pub language: crate::lang::Lang,
+    pub language: crate::ui::lang::Lang,
 }
 
 impl SettingsLock {

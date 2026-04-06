@@ -250,8 +250,5 @@ fn concurrent_updates() {
     let fraction = bridge.fraction();
     assert!(fraction.is_some(), "fraction должен быть Some, т.к. total задан");
     let f = fraction.unwrap();
-    assert!(
-        (0.0..=1.0).contains(&f),
-        "fraction должен быть в диапазоне [0.0, 1.0], получили {f}"
-    );
+    assert!((0.0..=1.0).contains(&f), "fraction должен быть в диапазоне [0.0, 1.0], получили {f}");
 }

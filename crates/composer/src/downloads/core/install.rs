@@ -22,21 +22,23 @@ impl Composer {
     /// - `Ok(None)` — все элементы установлены успешно.
     /// - `Ok(Some(failures))` — часть элементов не удалось установить.
     /// - `Err(...)` — фатальная ошибка (например, невозможно создать директорию).
-    pub async fn install_cores(&self, requests: Vec<DownloadRequest>) -> Result<Option<Vec<(Item, ComposerError)>>> {
+    pub async fn install_cores(
+        &self,
+        requests: Vec<DownloadRequest>,
+    ) -> Result<Option<Vec<(Item, ComposerError)>>> {
         let total = requests.len();
         tracing::info!(total, "starting cores install");
 
         tokio::fs::create_dir_all(CoresLock::folder_name()).await?;
 
         let client = &self.clients.core;
-        let results = stream::iter(
-            requests
-                .into_iter()
-                .map(|request| async move { pipeline::download_and_prepare(client, request).await }),
-        )
-        .buffer_unordered(PARALLELISM)
-        .collect::<Vec<_>>()
-        .await;
+        let results =
+            stream::iter(requests.into_iter().map(|request| async move {
+                pipeline::download_and_prepare(client, request).await
+            }))
+            .buffer_unordered(PARALLELISM)
+            .collect::<Vec<_>>()
+            .await;
 
         let mut failed = Vec::new();
         let mut successful_count = 0usize;
@@ -71,6 +73,10 @@ impl Composer {
             "cores install complete"
         );
 
-        if failed.is_empty() { Ok(None) } else { Ok(Some(failed)) }
+        if failed.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(failed))
+        }
     }
 }

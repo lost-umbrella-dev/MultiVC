@@ -81,7 +81,10 @@ pub const fn needs_extraction() -> bool {
 /// - `dir` — директория с содержимым (extract dir на Windows, content dir на Linux/macOS).
 /// - `source` — путь к скачанному файлу. **Игнорируется на Windows** (поиск рекурсивный).
 ///   На Linux/macOS это путь к файлу, который нужно переименовать.
-pub async fn rename(dir: &Path, #[cfg_attr(target_os = "windows", allow(unused))] source: &Path) -> Result<()> {
+pub async fn rename(
+    dir: &Path,
+    #[cfg_attr(target_os = "windows", allow(unused))] source: &Path,
+) -> Result<()> {
     #[cfg(target_os = "windows")]
     {
         rename_archive(dir).await
@@ -99,11 +102,11 @@ pub async fn rename(dir: &Path, #[cfg_attr(target_os = "windows", allow(unused))
 /// и перемещает в корень как `core.exe`.
 #[cfg(target_os = "windows")]
 async fn rename_archive(extract_dir: &Path) -> Result<()> {
-    let source = find_voxelcore_exe(extract_dir)
-        .await?
-        .ok_or_else(|| ComposerError::CoreExecutableNotFound {
+    let source = find_voxelcore_exe(extract_dir).await?.ok_or_else(|| {
+        ComposerError::CoreExecutableNotFound {
             path: extract_dir.to_path_buf(),
-        })?;
+        }
+    })?;
 
     let dest = extract_dir.join(CANONICAL_NAME);
 
@@ -159,7 +162,10 @@ async fn find_voxelcore_exe(dir: &Path) -> Result<Option<std::path::PathBuf>> {
 /// На этих платформах ядро — один файл (`.AppImage` или `.dmg`),
 /// который не нужно распаковывать.
 #[cfg(not(target_os = "windows"))]
-async fn rename_direct(downloaded_file: &Path, target_dir: &Path) -> Result<()> {
+async fn rename_direct(
+    downloaded_file: &Path,
+    target_dir: &Path,
+) -> Result<()> {
     let dest = target_dir.join(CANONICAL_NAME);
 
     if downloaded_file != dest {
@@ -288,7 +294,9 @@ mod tests {
         assert!(result.is_err());
 
         match result.unwrap_err() {
-            ComposerError::CoreExecutableNotFound { .. } => {},
+            ComposerError::CoreExecutableNotFound {
+                ..
+            } => {},
             other => panic!("ожидали CoreExecutableNotFound, получили: {other:?}"),
         }
 

@@ -8,11 +8,11 @@ use composer::lock::instances::InstancesItem;
 use composer::message::Command;
 use composer::worker::WorkerHandle;
 
-use crate::icons;
-use crate::lang::{self, Lang};
-use crate::state::InstancesTabState;
-use crate::toasts;
-use crate::widgets::{image_from_base64, start_image_pick};
+use crate::ui::icons;
+use crate::ui::lang::{self, Lang};
+use crate::ui::state::InstancesTabState;
+use crate::ui::toasts;
+use crate::ui::widgets::{image_from_base64, start_image_pick};
 
 pub(super) fn render(
     ui: &mut egui::Ui,
@@ -33,11 +33,7 @@ pub(super) fn render(
     // Initialize edit state on first open
     if panel.edit_description.is_none() {
         panel.edit_description = Some(
-            state
-                .viewing
-                .as_ref()
-                .and_then(|inst| inst.description.clone())
-                .unwrap_or_default(),
+            state.viewing.as_ref().and_then(|inst| inst.description.clone()).unwrap_or_default(),
         );
     }
     if panel.edit_icon.is_none() {
@@ -72,11 +68,8 @@ pub(super) fn render(
     let edit_banner = panel.edit_banner.clone().unwrap_or_default();
 
     // Check if anything has changed from the original
-    let orig_desc = state
-        .viewing
-        .as_ref()
-        .and_then(|inst| inst.description.clone())
-        .unwrap_or_default();
+    let orig_desc =
+        state.viewing.as_ref().and_then(|inst| inst.description.clone()).unwrap_or_default();
     let changed = *edit_desc != orig_desc || edit_icon != meta.icon || edit_banner != meta.banner;
 
     // Description editor
@@ -130,10 +123,7 @@ pub(super) fn render(
     ui.separator();
 
     // Save button
-    if ui
-        .add_enabled(changed, egui::Button::new(lang::t("isettings.save", lang)))
-        .clicked()
-    {
+    if ui.add_enabled(changed, egui::Button::new(lang::t("isettings.save", lang))).clicked() {
         let description = panel.edit_description.clone().unwrap_or_default();
         let icon = panel.edit_icon.clone().unwrap_or_default();
         let banner = panel.edit_banner.clone().unwrap_or_default();

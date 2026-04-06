@@ -18,7 +18,9 @@ pub struct Clients {
 
 impl Clients {
     pub fn new(core: GithubClient) -> Self {
-        Self { core }
+        Self {
+            core,
+        }
     }
 }
 

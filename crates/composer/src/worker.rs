@@ -17,7 +17,9 @@
 use tokio::sync::mpsc;
 
 use crate::Composer;
-use crate::message::{Command, CoreDependentsMap, CoresInstalledResult, Event, InstancesSnapshot, ItemsSnapshot};
+use crate::message::{
+    Command, CoreDependentsMap, CoresInstalledResult, Event, InstancesSnapshot, ItemsSnapshot,
+};
 
 // ── Handles ──────────────────────────────────────────────────────────
 
@@ -35,7 +37,10 @@ impl WorkerHandle {
     /// Отправить команду, не блокируя UI.
     ///
     /// Возвращает `false` если worker уже завершился (канал закрыт).
-    pub fn try_send(&self, cmd: Command) -> bool {
+    pub fn try_send(
+        &self,
+        cmd: Command,
+    ) -> bool {
         self.commands.try_send(cmd).is_ok()
     }
 
@@ -71,7 +76,10 @@ impl ComposerWorker {
     /// Создаёт worker + [`WorkerHandle`] для UI-стороны.
     ///
     /// `buffer` — размер буфера обоих mpsc каналов.
-    pub fn new(composer: Composer, buffer: usize) -> (Self, WorkerHandle) {
+    pub fn new(
+        composer: Composer,
+        buffer: usize,
+    ) -> (Self, WorkerHandle) {
         let (cmd_tx, cmd_rx) = mpsc::channel(buffer);
         let (evt_tx, evt_rx) = mpsc::channel(buffer);
 
@@ -196,17 +204,27 @@ impl ComposerWorker {
         }
         for (name, status) in stopped {
             self.running.remove(&name);
-            self.send(Event::InstanceStopped { name, status }).await;
+            self.send(Event::InstanceStopped {
+                name,
+                status,
+            })
+            .await;
         }
     }
 
     /// Отправляет событие в UI, игнорируя ошибку закрытого канала.
-    async fn send(&self, event: Event) {
+    async fn send(
+        &self,
+        event: Event,
+    ) {
         let _ = self.events.send(event).await;
     }
 
     /// Диспетчеризация одной команды → один Event.
-    async fn handle(&mut self, cmd: Command) -> Event {
+    async fn handle(
+        &mut self,
+        cmd: Command,
+    ) -> Event {
         match cmd {
             // ── Persistence ──────────────────────────────────────
             Command::Save => {
@@ -225,7 +243,9 @@ impl ComposerWorker {
             },
 
             // ── Install ──────────────────────────────────────────
-            Command::InstallCores { requests } => {
+            Command::InstallCores {
+                requests,
+            } => {
                 let total = requests.len();
                 let result = self.composer.install_cores(requests).await;
                 match result {
@@ -244,7 +264,10 @@ impl ComposerWorker {
                         // Отправляем актуальный снимок ядер в UI
                         self.send(Event::CoresItems(self.cores_snapshot())).await;
 
-                        Event::CoresInstalled(CoresInstalledResult { successful, failed })
+                        Event::CoresInstalled(CoresInstalledResult {
+                            successful,
+                            failed,
+                        })
                     },
                     Err(fatal) => Event::Error(fatal),
                 }
@@ -262,7 +285,9 @@ impl ComposerWorker {
             },
 
             // ── Remove core ──────────────────────────────────────
-            Command::RemoveCore { hash } => {
+            Command::RemoveCore {
+                hash,
+            } => {
                 match self.composer.remove_core(&hash).await {
                     Ok(item) => {
                         // Автосохраняем lock после удаления
@@ -273,14 +298,21 @@ impl ComposerWorker {
                             // Отправляем актуальный снимок ядер в UI
                             self.send(Event::CoresItems(self.cores_snapshot())).await;
                         }
-                        Event::CoreRemoved { hash, item }
+                        Event::CoreRemoved {
+                            hash,
+                            item,
+                        }
                     },
                     Err(e) => Event::Error(e),
                 }
             },
 
             // ── Instances CRUD ───────────────────────────────────
-            Command::CreateInstance { name, config, meta } => {
+            Command::CreateInstance {
+                name,
+                config,
+                meta,
+            } => {
                 let mut meta = meta;
                 meta.created_at = Some(chrono::Utc::now());
                 match self.composer.create_instance(name.clone(), config, meta).await {
@@ -294,12 +326,18 @@ impl ComposerWorker {
                 }
             },
 
-            Command::GetInstance { name } => {
+            Command::GetInstance {
+                name,
+            } => {
                 let result = self.composer.get_instance(&name).await;
                 Event::InstanceInfo(result)
             },
 
-            Command::EditInstance { name, config, meta } => {
+            Command::EditInstance {
+                name,
+                config,
+                meta,
+            } => {
                 match self.composer.edit_instance(&name, config, meta).await {
                     Ok(()) => {
                         // Отправляем актуальный снимок инстансов в UI
@@ -311,7 +349,9 @@ impl ComposerWorker {
                 }
             },
 
-            Command::RemoveInstance { name } => {
+            Command::RemoveInstance {
+                name,
+            } => {
                 match self.composer.remove_instance(&name).await {
                     Ok(item) => {
                         if item.is_some() {
@@ -323,14 +363,19 @@ impl ComposerWorker {
                             let (items, deps) = self.instances_snapshot().await;
                             self.send(Event::InstancesItems(items, deps)).await;
                         }
-                        Event::InstanceRemoved { name, item }
+                        Event::InstanceRemoved {
+                            name,
+                            item,
+                        }
                     },
                     Err(e) => Event::Error(e),
                 }
             },
 
             // ── Fetch (list / get) ───────────────────────────────
-            Command::FetchCoresList { search_version } => {
+            Command::FetchCoresList {
+                search_version,
+            } => {
                 let result = self
                     .composer
                     .clients
@@ -345,12 +390,16 @@ impl ComposerWorker {
                 Event::CoresFetched(result)
             },
 
-            Command::FetchCore { version } => {
+            Command::FetchCore {
+                version,
+            } => {
                 let result = self
                     .composer
                     .clients
                     .core
-                    .get(clients::github::GitHubGetOptions { version })
+                    .get(clients::github::GitHubGetOptions {
+                        version,
+                    })
                     .await
                     .map_err(Into::into);
                 Event::CoreFetched(result)
@@ -365,7 +414,9 @@ impl ComposerWorker {
             },
 
             // ── Launch ───────────────────────────────────────────
-            Command::LaunchInstance { name } => {
+            Command::LaunchInstance {
+                name,
+            } => {
                 // Use launch_instance_cmd() + Stdio::null() to suppress console output
                 match self.composer.launch_instance_cmd(&name).await {
                     Ok(mut cmd) => {
@@ -383,7 +434,9 @@ impl ComposerWorker {
                                 self.running.insert(name.clone(), child);
 
                                 // Update last_launch timestamp in the instances lock
-                                if let Some(mut entry) = self.composer.instances.items().get_mut(&name) {
+                                if let Some(mut entry) =
+                                    self.composer.instances.items().get_mut(&name)
+                                {
                                     entry.last_launch = Some(chrono::Utc::now());
                                 }
                                 // Persist the updated lock asynchronously (best-effort)
@@ -391,25 +444,39 @@ impl ComposerWorker {
                                     tracing::warn!(error = %e, "failed to save instances lock after launch");
                                 }
 
-                                Event::InstanceLaunched { name, result: Ok(pid) }
+                                Event::InstanceLaunched {
+                                    name,
+                                    result: Ok(pid),
+                                }
                             },
                             Err(e) => {
                                 let err = crate::error::ComposerError::Io(e);
-                                Event::InstanceLaunched { name, result: Err(err) }
+                                Event::InstanceLaunched {
+                                    name,
+                                    result: Err(err),
+                                }
                             },
                         }
                     },
-                    Err(e) => Event::InstanceLaunched { name, result: Err(e) },
+                    Err(e) => Event::InstanceLaunched {
+                        name,
+                        result: Err(e),
+                    },
                 }
             },
 
-            Command::StopInstance { name } => {
+            Command::StopInstance {
+                name,
+            } => {
                 if let Some(mut child) = self.running.remove(&name) {
                     match child.kill().await {
                         Ok(()) => {
                             tracing::info!(instance = %name, "instance process killed");
                             let status = child.wait().await.ok().and_then(|s| s.code());
-                            Event::InstanceStopped { name, status }
+                            Event::InstanceStopped {
+                                name,
+                                status,
+                            }
                         },
                         Err(e) => {
                             tracing::error!(instance = %name, error = %e, "failed to kill instance");
@@ -419,15 +486,23 @@ impl ComposerWorker {
                 } else {
                     tracing::warn!(instance = %name, "no running process found for instance");
                     // Instance already stopped or was never launched via worker
-                    Event::InstanceStopped { name, status: None }
+                    Event::InstanceStopped {
+                        name,
+                        status: None,
+                    }
                 }
             },
 
             // ── Dir size ─────────────────────────────────────────
-            Command::GetInstanceDirSize { name } => {
+            Command::GetInstanceDirSize {
+                name,
+            } => {
                 let path = std::path::Path::new("instances").join(&name);
                 let bytes = dir_size(&path);
-                Event::InstanceDirSize { name, bytes }
+                Event::InstanceDirSize {
+                    name,
+                    bytes,
+                }
             },
 
             // ── Lifecycle ────────────────────────────────────────
@@ -464,8 +539,8 @@ mod tests {
     use clients::github::GithubClient;
 
     fn test_composer() -> Composer {
-        let client =
-            GithubClient::new("test-owner".to_owned(), "test-repo".to_owned()).expect("failed to create github client");
+        let client = GithubClient::new("test-owner".to_owned(), "test-repo".to_owned())
+            .expect("failed to create github client");
         Composer::new(Clients::new(client))
     }
 

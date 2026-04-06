@@ -25,11 +25,17 @@ pub struct DownloadRequest {
 impl DownloadRequest {
     /// Создаёт запрос без отслеживания прогресса.
     pub fn new(item: Item) -> Self {
-        Self { item, progress: None }
+        Self {
+            item,
+            progress: None,
+        }
     }
 
     /// Создаёт запрос с per-item прогрессом.
-    pub fn with_progress(item: Item, progress: Box<dyn ProgressSink>) -> Self {
+    pub fn with_progress(
+        item: Item,
+        progress: Box<dyn ProgressSink>,
+    ) -> Self {
         Self {
             item,
             progress: Some(progress),
@@ -50,7 +56,10 @@ impl DownloadRequest {
         final_path,
     ),
 )]
-pub async fn commit_extracted_dir<L>(extract_path: &Path, dir_hash: &Hash) -> Result<()>
+pub async fn commit_extracted_dir<L>(
+    extract_path: &Path,
+    dir_hash: &Hash,
+) -> Result<()>
 where
     L: Lock,
 {
@@ -83,7 +92,11 @@ where
 ///
 /// Пытается выполнить `rename`. Если rename не удался (другая задача уже создала директорию),
 /// проверяет хэш существующей директории. Если хэш совпадает — операция считается успешной.
-async fn rename_or_accept_existing(extract_path: &Path, final_path: &Path, dir_hash: &Hash) -> Result<()> {
+async fn rename_or_accept_existing(
+    extract_path: &Path,
+    final_path: &Path,
+    dir_hash: &Hash,
+) -> Result<()> {
     if tokio::fs::rename(extract_path, final_path).await.is_ok() {
         tracing::debug!(path = %final_path.display(), "directory committed via rename");
         return Ok(());

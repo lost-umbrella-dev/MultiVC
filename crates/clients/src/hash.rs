@@ -20,7 +20,10 @@ impl Hash {
     }
 
     /// Проверяет, совпадает ли хеш данных с принимаемым файлом
-    pub fn verify(&self, data: &[u8]) -> bool {
+    pub fn verify(
+        &self,
+        data: &[u8],
+    ) -> bool {
         match self {
             Hash::SHA256(expected) => {
                 let actual = Sha256::digest(data);
@@ -34,7 +37,10 @@ impl Hash {
     }
 
     /// Проверяет, совпадает ли хеш данных с ожидаемым значением через digest
-    pub fn verify_digest(&self, digest_bytes: &[u8]) -> bool {
+    pub fn verify_digest(
+        &self,
+        digest_bytes: &[u8],
+    ) -> bool {
         let expected = match self {
             Hash::SHA256(s) | Hash::SHA512(s) => s,
         };
@@ -43,7 +49,10 @@ impl Hash {
 }
 
 impl fmt::Display for Hash {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
         match self {
             Hash::SHA256(value) => write!(f, "sha256:{value}"),
             Hash::SHA512(value) => write!(f, "sha512:{value}"),
@@ -77,7 +86,10 @@ impl Hash {
 }
 
 impl Serialize for Hash {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {

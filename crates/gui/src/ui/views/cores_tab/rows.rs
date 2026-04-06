@@ -2,9 +2,9 @@
 
 use eframe::egui;
 
-use crate::icons;
-use crate::lang::{self, Lang};
-use crate::widgets::{ProgressRing, icon_button, striped_frame};
+use crate::ui::icons;
+use crate::ui::lang::{self, Lang};
+use crate::ui::widgets::{ProgressRing, icon_button, striped_frame};
 
 // ── Installed row ─────────────────────────────────────────────────────
 
@@ -36,9 +36,12 @@ pub(super) fn installed_core_row(
             let actions_width = 60.0;
             let version_width = 80.0;
             let hash_width = 160.0;
-            let name_width =
-                (ui.available_width() - version_width - hash_width - actions_width - ui.spacing().item_spacing.x * 4.0)
-                    .max(80.0);
+            let name_width = (ui.available_width()
+                - version_width
+                - hash_width
+                - actions_width
+                - ui.spacing().item_spacing.x * 4.0)
+                .max(80.0);
 
             ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
             ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
@@ -56,7 +59,9 @@ pub(super) fn installed_core_row(
 
                 if has_dependents {
                     let tooltip = format!("Used by: [ {} ]", dependents.join(", "));
-                    let btn = icon_button(egui::RichText::new(icons::ICON_DELETE).color(egui::Color32::YELLOW));
+                    let btn = icon_button(
+                        egui::RichText::new(icons::ICON_DELETE).color(egui::Color32::YELLOW),
+                    );
                     ui.add_enabled(false, btn).on_disabled_hover_text(tooltip);
                 } else if ui
                     .add(icon_button(icons::ICON_DELETE))
@@ -105,9 +110,12 @@ pub(super) fn available_core_row(
             let status_width = 30.0;
             let size_width = 80.0;
             let version_width = 80.0;
-            let name_width =
-                (ui.available_width() - version_width - size_width - status_width - ui.spacing().item_spacing.x * 4.0)
-                    .max(80.0);
+            let name_width = (ui.available_width()
+                - version_width
+                - size_width
+                - status_width
+                - ui.spacing().item_spacing.x * 4.0)
+                .max(80.0);
 
             ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
             ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
