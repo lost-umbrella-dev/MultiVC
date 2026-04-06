@@ -270,7 +270,7 @@ pub fn render(
                     );
 
                     if row_actions.delete && !global_busy {
-                        let display = format!("{} v{}", lock_item.item.name, lock_item.item.version);
+                        let display = format!("{} {}", lock_item.item.name, lock_item.item.version);
                         request_remove = Some((hash.clone(), display));
                     }
                     if row_actions.create_instance {
@@ -298,7 +298,7 @@ pub fn render(
                     ui.colored_label(
                         egui::Color32::YELLOW,
                         format!(
-                            "{}: {} v{} ({})",
+                            "{}: {} {} ({})",
                             lang::t("validation.hash_mismatch", lang),
                             item.item.name,
                             item.item.version,
@@ -310,7 +310,7 @@ pub fn render(
                     ui.colored_label(
                         egui::Color32::RED,
                         format!(
-                            "{}: {} v{} ({})",
+                            "{}: {} {} ({})",
                             lang::t("validation.not_found", lang),
                             item.item.name,
                             item.item.version,

@@ -128,7 +128,7 @@ impl App {
                 } else {
                     let errors: Vec<String> = failed
                         .iter()
-                        .map(|(item, err)| format!("  {} v{}: {err}", item.name, item.version))
+                        .map(|(item, err)| format!("  {} {}: {err}", item.name, item.version))
                         .collect();
                     toasts::error(
                         toasts,
@@ -172,7 +172,7 @@ impl App {
                     self.state.cores.installed.retain(|(h, _)| h != &hash);
                     toasts::success(
                         toasts,
-                        format!("Core removed: {} v{}", lock_item.item.name, lock_item.item.version),
+                        format!("Core removed: {} {}", lock_item.item.name, lock_item.item.version),
                     );
                 } else {
                     toasts::warning(toasts, format!("Core not found: {hash}"));
@@ -249,7 +249,7 @@ impl App {
             },
 
             Event::CoreFetched(Ok(Some(item))) => {
-                toasts::info(toasts, format!("Found: {} v{}", item.name, item.version));
+                toasts::info(toasts, format!("Found: {} {}", item.name, item.version));
             },
             Event::CoreFetched(Ok(None)) => {
                 toasts::warning(toasts, "Version not found");

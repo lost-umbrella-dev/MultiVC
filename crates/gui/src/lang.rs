@@ -162,6 +162,10 @@ pub fn t(key: &str, lang: Lang) -> &'static str {
         ("info.description", Lang::Ru) => "Описание",
         ("info.core_version", Lang::En) => "Core version",
         ("info.core_version", Lang::Ru) => "Версия ядра",
+        ("info.core_hash_not_found", Lang::En) => "Core hash not found",
+        ("info.core_hash_not_found", Lang::Ru) => "Хеш ядра не найден",
+        ("info.core_hash", Lang::En) => "Core hash",
+        ("info.core_hash", Lang::Ru) => "Хеш ядра",
         ("info.pid", Lang::En) => "PID",
         ("info.pid", Lang::Ru) => "PID",
         ("info.created_at", Lang::En) => "Created",
@@ -234,6 +238,7 @@ pub fn t(key: &str, lang: Lang) -> &'static str {
         _ => {
             // Leak the key string to produce &'static str.
             // Only happens for developer-forgotten keys, not user input.
+            tracing::warn!("translation key not found: {}", key);
             Box::leak(key.to_owned().into_boxed_str())
         },
     }

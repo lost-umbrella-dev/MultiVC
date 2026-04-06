@@ -205,7 +205,7 @@ pub fn render(
                     let selected_text = match form.selected_core_idx {
                         Some(idx) if idx < installed_cores.len() => {
                             let (_, li) = &installed_cores[idx];
-                            format!("{} v{}", li.item.name, li.item.version)
+                            format!("{} {}", li.item.name, li.item.version)
                         },
                         _ => lang::t("form.select_core", lang).to_owned(),
                     };
@@ -214,7 +214,7 @@ pub fn render(
                         .selected_text(selected_text)
                         .show_ui(ui, |ui| {
                             for (idx, (hash, li)) in installed_cores.iter().enumerate() {
-                                let label = format!("{} v{}", li.item.name, li.item.version);
+                                let label = format!("{} {}", li.item.name, li.item.version);
                                 let hash_short = {
                                     let s = hash.to_string();
                                     if s.len() > 12 { format!("{}...", &s[..12]) } else { s }

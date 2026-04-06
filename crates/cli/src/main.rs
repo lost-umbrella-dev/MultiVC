@@ -146,13 +146,13 @@ fn print_validate_reasons(label: &str, reasons: &[ValidateReason]) {
         match reason {
             ValidateReason::HashNotMatcher(hash, lock_item) => {
                 println!(
-                    "  \u{2717} Хэш не совпадает: «{}» v{} (ожидался {hash})",
+                    "  \u{2717} Хэш не совпадает: «{}» {} (ожидался {hash})",
                     lock_item.item.name, lock_item.item.version,
                 );
             },
             ValidateReason::NotFound(hash, lock_item) => {
                 println!(
-                    "  \u{2717} Файл не найден: «{}» v{} ({hash})",
+                    "  \u{2717} Файл не найден: «{}» {} ({hash})",
                     lock_item.item.name, lock_item.item.version,
                 );
             },

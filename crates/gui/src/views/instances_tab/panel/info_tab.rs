@@ -31,7 +31,7 @@ pub(super) fn render(
     let meta = meta.clone();
 
     let icon_size = 48.0;
-    let banner_height = 80.0;
+    let banner_height = 120.0;
 
     // Icon + name (bottom-aligned) | Banner (right)
     ui.horizontal(|ui| {
@@ -57,7 +57,7 @@ pub(super) fn render(
 
         // Right side: banner
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let banner_width = ui.available_width().min(300.0);
+            let banner_width = ui.available_width().min(600.0);
             image_from_base64(
                 ui,
                 &format!("instance/{name}/banner"),
@@ -83,14 +83,25 @@ pub(super) fn render(
 
     // Core version
     if let Some(inst) = &state.viewing {
-        let core_label = installed_cores
+        let (core_label, hash) = installed_cores
             .iter()
             .find(|(h, _)| *h == inst.core_version)
-            .map(|(h, li)| format!("{} v{} ({})", li.item.name, li.item.version, h))
-            .unwrap_or_else(|| inst.core_version.to_string());
+            .map(|(h, li)| (li.item.version.to_string(), h.to_string()))
+            .unwrap_or_else(|| {
+                (
+                    inst.core_version.to_string(),
+                    lang::t("info.core_hash_not_found", lang).to_owned(),
+                )
+            });
+
         ui.horizontal(|ui| {
             ui.strong(format!("{}:", lang::t("info.core_version", lang)));
             ui.label(core_label);
+        });
+
+        ui.horizontal(|ui| {
+            ui.strong(format!("{}:", lang::t("info.core_hash", lang)));
+            ui.label(hash);
         });
     }
 
