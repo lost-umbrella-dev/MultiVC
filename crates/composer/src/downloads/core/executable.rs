@@ -177,6 +177,15 @@ async fn rename_direct(
         );
 
         tokio::fs::copy(downloaded_file, &dest).await?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = std::fs::Permissions::from_mode(0o755);
+            tokio::fs::set_permissions(&dest, perms).await?;
+            tracing::debug!(path = %dest.display(), mode = "0o755", "set execute permissions");
+        }
+
         tokio::fs::remove_file(downloaded_file).await?;
 
         tracing::debug!(source = %downloaded_file.display(), "original removed");

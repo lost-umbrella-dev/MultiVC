@@ -98,6 +98,48 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Package CLI archive
+        shell: bash
+        run: |
+          dir="multivc-cli-${{ matrix.system }}-${{ matrix.arch }}"
+          mkdir "$dir"
+          cp "cli-${{ matrix.system }}-${{ matrix.arch }}${{ matrix.ext }}" "$dir/cli${{ matrix.ext }}"
+          echo 'language = "En"' > "$dir/settings.toml"
+          if [[ "${{ matrix.system }}" == "windows" ]]; then
+            7z a "${dir}.zip" "$dir"
+          else
+            tar czf "${dir}.tar.gz" "$dir"
+          fi
+
+      - name: Package GUI archive
+        shell: bash
+        run: |
+          dir="multivc-gui-${{ matrix.system }}-${{ matrix.arch }}"
+          mkdir "$dir"
+          cp "gui-${{ matrix.system }}-${{ matrix.arch }}${{ matrix.ext }}" "$dir/gui${{ matrix.ext }}"
+          echo 'language = "En"' > "$dir/settings.toml"
+          if [[ "${{ matrix.system }}" == "windows" ]]; then
+            7z a "${dir}.zip" "$dir"
+          else
+            tar czf "${dir}.tar.gz" "$dir"
+          fi
+
+      - name: Upload CLI archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-cli-${{ matrix.system }}-${{ matrix.arch }}
+          path: multivc-cli-${{ matrix.system }}-${{ matrix.arch }}.*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload GUI archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: archive-gui-${{ matrix.system }}-${{ matrix.arch }}
+          path: multivc-gui-${{ matrix.system }}-${{ matrix.arch }}.*
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     name: Create GitHub Release
     needs: build

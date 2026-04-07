@@ -54,6 +54,13 @@ pub enum ComposerError {
         name: String,
         exe_path: std::path::PathBuf,
     },
+    #[error(
+        "Failed to launch instance `{name}`: core executable at `{exe_path}` is not executable (missing execute permission)"
+    )]
+    CoreNotExecutable {
+        name: String,
+        exe_path: PathBuf,
+    },
 }
 
 #[derive(Error, Debug)]

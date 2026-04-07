@@ -1,6 +1,7 @@
 //! UI state — cached data from the background worker, organized per-tab.
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 use clients::hash::Hash;
 use clients::item::Item;
@@ -8,6 +9,7 @@ use composer::item::LockItem;
 use composer::lock::ValidateReason;
 use composer::lock::instance::Instance;
 use composer::lock::instances::{InstanceValidateReason, InstancesItem};
+use composer::paths::AppPaths;
 
 use crate::ui::download_tracker::DownloadTracker;
 
@@ -103,14 +105,18 @@ impl InstancePanelState {
 /// Settings state — persisted settings and modal state.
 pub struct SettingsState {
     pub lock: crate::ui::settings::SettingsLock,
+    /// Path to settings.toml on disk.
+    pub path: PathBuf,
     /// Whether the settings modal is currently open.
     pub open: bool,
 }
 
-impl Default for SettingsState {
-    fn default() -> Self {
+impl SettingsState {
+    pub fn new(paths: &AppPaths) -> Self {
+        let settings_path = paths.settings_path();
         Self {
-            lock: crate::ui::settings::SettingsLock::load(),
+            lock: crate::ui::settings::SettingsLock::load(&settings_path),
+            path: settings_path,
             open: false,
         }
     }
@@ -119,7 +125,6 @@ impl Default for SettingsState {
 // ── Root state ───────────────────────────────────────────────────────
 
 /// Корневое UI-состояние, обновляемое из `Event`-ов.
-#[derive(Default)]
 pub struct UiState {
     /// Данные вкладки «Ядра».
     pub cores: CoresTabState,
@@ -127,6 +132,20 @@ pub struct UiState {
     pub instances: InstancesTabState,
     /// Settings state.
     pub settings: SettingsState,
+    /// Resolved application paths.
+    pub paths: AppPaths,
+}
+
+impl UiState {
+    pub fn new(paths: AppPaths) -> Self {
+        let settings = SettingsState::new(&paths);
+        Self {
+            cores: CoresTabState::default(),
+            instances: InstancesTabState::default(),
+            settings,
+            paths,
+        }
+    }
 }
 
 // ── Cores tab ────────────────────────────────────────────────────────

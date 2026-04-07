@@ -1,22 +1,26 @@
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
+
+use composer::paths::PathOverrides;
 
 /// Persisted launcher settings.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SettingsLock {
     #[serde(default)]
     pub language: crate::ui::lang::Lang,
+    #[serde(default)]
+    pub paths: PathOverrides,
 }
 
 impl SettingsLock {
-    const FILE_PATH: &'static str = "settings.toml";
-
-    /// Loads settings from disk. Returns default if file is missing and saves it.
-    pub fn load() -> Self {
-        match std::fs::read_to_string(Self::FILE_PATH) {
+    /// Loads settings from the given path. Returns default if file is missing and saves it.
+    pub fn load(path: &Path) -> Self {
+        match std::fs::read_to_string(path) {
             Ok(s) => toml::from_str(&s).unwrap_or_default(),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 let default = Self::default();
-                let _ = default.save(); // best-effort save
+                let _ = default.save(path); // best-effort save
                 default
             },
             Err(_) => Self::default(),
@@ -24,9 +28,15 @@ impl SettingsLock {
     }
 
     /// Saves settings to disk synchronously.
-    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save(
+        &self,
+        path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let s = toml::to_string_pretty(self)?;
-        std::fs::write(Self::FILE_PATH, s)?;
+        std::fs::write(path, s)?;
         Ok(())
     }
 }

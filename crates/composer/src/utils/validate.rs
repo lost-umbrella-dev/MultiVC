@@ -1,11 +1,9 @@
+use std::path::Path;
+
 use clients::hash::Hash;
 use tracing::instrument;
 
-use crate::{
-    error::ValidationError,
-    item::LockItem,
-    lock::{Lock, ValidateReason},
-};
+use crate::{error::ValidationError, item::LockItem, lock::ValidateReason};
 
 use super::{fs, hash};
 
@@ -15,21 +13,19 @@ pub const PARALLELISM: usize = 32;
 #[instrument(
     name = "lock.validate_item",
     level = "debug",
-    skip(item),
+    skip(item, base_dir),
     fields(
         item.name = %item.item.name,
         item.version = %item.item.version,
         hash = %hash_value,
     ),
 )]
-pub async fn validate_dir_item<L>(
+pub async fn validate_dir_item(
+    base_dir: &Path,
     hash_value: &Hash,
     item: &LockItem,
-) -> Result<Option<ValidateReason>, ValidationError>
-where
-    L: Lock,
-{
-    let path = hash::item_path::<L>(hash_value);
+) -> Result<Option<ValidateReason>, ValidationError> {
+    let path = hash::item_path(base_dir, hash_value);
 
     match tokio::fs::metadata(&path).await {
         Ok(metadata) => {
@@ -40,12 +36,14 @@ where
 
             let path_for_hash = path;
             let hash_for_check = hash_value.clone();
+            let bd = base_dir.to_path_buf();
+            let hv = hash_value.clone();
             let is_match = tokio::task::spawn_blocking(move || {
                 fs::hash_directory(&path_for_hash, &hash_for_check)
             })
             .await
             .map_err(|e| ValidationError::Read {
-                path: hash::item_path::<L>(hash_value),
+                path: hash::item_path(&bd, &hv),
                 source: std::io::Error::other(e),
             })??;
 

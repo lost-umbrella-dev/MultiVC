@@ -8,6 +8,7 @@ use egui_toast::Toasts;
 
 use composer::error::ComposerError;
 use composer::message::{Command, CoresInstalledResult, Event};
+use composer::paths::AppPaths;
 use composer::worker::WorkerHandle;
 
 use crate::ui::Tab;
@@ -32,12 +33,13 @@ impl App {
     pub fn new(
         handle: WorkerHandle,
         runtime: tokio::runtime::Runtime,
+        paths: AppPaths,
     ) -> Self {
         handle.try_send(Command::GetCoresItems);
         handle.try_send(Command::GetInstancesItems);
         handle.try_send(Command::ValidateCores);
 
-        let mut state = UiState::default();
+        let mut state = UiState::new(paths);
         state.cores.busy = true;
 
         Self {
@@ -163,11 +165,7 @@ impl App {
                 } else {
                     toasts::warning(
                         toasts,
-                        format!(
-                            "{}: {}",
-                            lang::t("toast.instances_issues", lang),
-                            reasons.len()
-                        ),
+                        format!("{}: {}", lang::t("toast.instances_issues", lang), reasons.len()),
                     );
                 }
                 state.instances.validation = reasons;
@@ -239,10 +237,7 @@ impl App {
                 state.instances.viewing = Some(instance);
             },
             Event::InstanceInfo(Err(e)) => {
-                toasts::error(
-                    toasts,
-                    format!("{}: {e}", lang::t("toast.instance_info_err", lang)),
-                );
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.instance_info_err", lang)));
             },
 
             Event::InstanceEdited(Ok(name)) => {
@@ -340,10 +335,7 @@ impl App {
                 toasts::warning(toasts, lang::t("toast.version_not_found", lang));
             },
             Event::CoreFetched(Err(e)) => {
-                toasts::error(
-                    toasts,
-                    format!("{}: {e}", lang::t("toast.fetch_version_err", lang)),
-                );
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.fetch_version_err", lang)));
             },
 
             Event::CoresItems(items) => {
@@ -377,10 +369,7 @@ impl App {
                     );
                 },
                 _ => {
-                    toasts::error(
-                        toasts,
-                        format!("{}: {e}", lang::t("toast.fatal_err", lang)),
-                    );
+                    toasts::error(toasts, format!("{}: {e}", lang::t("toast.fatal_err", lang)));
                 },
             },
             Event::ShutdownComplete => {
@@ -465,6 +454,6 @@ impl eframe::App for App {
     ) {
         tracing::info!("sending Shutdown to worker");
         self.handle.try_send(Command::Shutdown);
-        let _ = self.state.settings.lock.save();
+        let _ = self.state.settings.lock.save(&self.state.settings.path);
     }
 }

@@ -106,6 +106,7 @@ pub fn render_ui(
                 &mut args.state.instances,
                 args.handle,
                 &args.state.cores.installed,
+                &args.state.paths.instances_dir,
                 &mut toasts_instance,
                 lang,
             );
@@ -118,6 +119,7 @@ pub fn render_ui(
         &mut args.state.settings,
         args.state.cores.installed.len(),
         args.state.instances.installed.len(),
+        &args.state.paths,
         &mut toasts_instance,
     );
 

@@ -5,7 +5,6 @@ use crate::Composer;
 use crate::downloads::{DownloadRequest, PARALLELISM};
 use crate::error::{ComposerError, Result};
 use crate::lock::Lock;
-use crate::lock::core::CoresLock;
 
 use super::pipeline;
 
@@ -29,16 +28,17 @@ impl Composer {
         let total = requests.len();
         tracing::info!(total, "starting cores install");
 
-        tokio::fs::create_dir_all(CoresLock::folder_name()).await?;
+        tokio::fs::create_dir_all(&self.paths.cores_dir).await?;
 
         let client = &self.clients.core;
-        let results =
-            stream::iter(requests.into_iter().map(|request| async move {
-                pipeline::download_and_prepare(client, request).await
-            }))
-            .buffer_unordered(PARALLELISM)
-            .collect::<Vec<_>>()
-            .await;
+        let cores_dir = self.paths.cores_dir.clone();
+        let results = stream::iter(requests.into_iter().map(|request| {
+            let cores_dir = cores_dir.clone();
+            async move { pipeline::download_and_prepare(client, request, &cores_dir).await }
+        }))
+        .buffer_unordered(PARALLELISM)
+        .collect::<Vec<_>>()
+        .await;
 
         let mut failed = Vec::new();
         let mut successful_count = 0usize;

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use clients::hash::Hash;
 use futures_util::{StreamExt, stream};
 use serde::{Serialize, de::DeserializeOwned};
@@ -27,65 +29,38 @@ where
     /// Возвращает scouped-span для логирования
     fn span() -> Span;
 
-    /// Путь к lock-файлу (с включением folder)
-    fn file_name() -> &'static std::path::Path;
-
-    /// Путь к папке с lock-файлом и файлами lock-файла
-    fn folder_name() -> &'static std::path::Path;
-
     /// Возвращает список элементов в lock-файле
     fn items(&self) -> &LockMap;
 
     /// Загружает lock-файл из диска.
     ///
     /// Если файл не найден — возвращает `Self::default()` (первый запуск) и сохраняет на диске.
-    async fn load() -> Result<Self> {
-        let span = tracing::debug_span!(
-            parent: &Self::span(),
-            "lock.load",
-            file = %Self::file_name().display(),
-        );
-
-        async {
-            tracing::debug!("loading lock file");
-            match tokio::fs::read(Self::file_name()).await {
-                Ok(bytes) => {
-                    let lock: Self = toml::from_slice(&bytes)?;
-                    tracing::debug!(items = lock.items().len(), "lock file loaded");
-                    Ok(lock)
-                },
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    tracing::debug!("lock file not found, creating default");
-                    let lock = Self::default();
-                    lock.save().await?;
-                    Ok(lock)
-                },
-                Err(e) => Err(e.into()),
-            }
-        }
-        .instrument(span)
-        .await
-    }
+    async fn load(lock_file: &Path) -> Result<Self>;
 
     /// Сохраняет lock-файл на диск
-    async fn save(&self) -> Result<()> {
+    async fn save(
+        &self,
+        lock_file: &Path,
+    ) -> Result<()> {
         let span = tracing::debug_span!(
             parent: &Self::span(),
             "lock.save",
-            file = %Self::file_name().display(),
+            file = %lock_file.display(),
             items = self.items().len(),
         );
 
-        async {
+        let lock_file = lock_file.to_path_buf();
+
+        async move {
             tracing::debug!("saving lock file");
 
             // Создаём родительские директории, если их ещё нет
-            if let Some(parent) = Self::file_name().parent() {
+            if let Some(parent) = lock_file.parent() {
                 tokio::fs::create_dir_all(parent).await?;
             }
 
             let bytes = toml::to_string_pretty(self)?;
-            tokio::fs::write(Self::file_name(), bytes).await?;
+            tokio::fs::write(&lock_file, bytes).await?;
             tracing::debug!("lock file saved");
             Ok(())
         }
@@ -99,6 +74,7 @@ where
     /// Lock-файл **не** сохраняется — вызывающий код решает когда вызвать `save()`.
     async fn remove(
         &self,
+        dir: &Path,
         hash: &Hash,
     ) -> Result<Option<LockItem>> {
         let span = tracing::debug_span!(
@@ -107,7 +83,9 @@ where
             hash = %hash,
         );
 
-        async {
+        let dir = dir.to_path_buf();
+
+        async move {
             let removed = self.items().remove(hash).map(|(_, item)| item);
 
             if let Some(ref item) = removed {
@@ -117,7 +95,7 @@ where
                     "item removed from lock",
                 );
 
-                let path = crate::utils::hash::item_path::<Self>(hash);
+                let path = crate::utils::hash::item_path(&dir, hash);
                 if tokio::fs::try_exists(&path).await? {
                     tokio::fs::remove_dir_all(&path).await?;
                     tracing::debug!(path = %path.display(), "directory removed");
@@ -137,7 +115,10 @@ where
     /// Возвращает список элементов, которые не найдены в папке извлекая их из lock
     ///
     /// Использует хэш из lock-файла для поиска в папке
-    async fn validate_dir(&self) -> Result<Vec<ValidateReason>> {
+    async fn validate_dir(
+        &self,
+        dir: &Path,
+    ) -> Result<Vec<ValidateReason>> {
         let span = tracing::info_span!(
             parent: &Self::span(),
             "lock.validate_dir",
@@ -145,7 +126,9 @@ where
             parallelism = validate::PARALLELISM,
         );
 
-        async {
+        let folder = dir.to_path_buf();
+
+        async move {
             let items: Vec<_> = self
                 .items()
                 .iter()
@@ -155,11 +138,14 @@ where
             let total = items.len();
             tracing::info!(total, "starting directory validation");
 
-            let results = stream::iter(items.into_iter().map(|(hash, item)| async move {
-                match validate::validate_dir_item::<Self>(&hash, &item).await {
-                    Ok(None) => Ok::<_, ValidationError>(Ok((hash, item))),
-                    Ok(Some(reason)) => Ok(Err(reason)),
-                    Err(error) => Err(error),
+            let results = stream::iter(items.into_iter().map(|(hash, item)| {
+                let folder = folder.clone();
+                async move {
+                    match validate::validate_dir_item(&folder, &hash, &item).await {
+                        Ok(None) => Ok::<_, ValidationError>(Ok((hash, item))),
+                        Ok(Some(reason)) => Ok(Err(reason)),
+                        Err(error) => Err(error),
+                    }
                 }
             }))
             .buffer_unordered(validate::PARALLELISM)

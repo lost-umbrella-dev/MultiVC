@@ -440,7 +440,12 @@ impl ComposerWorker {
                                     entry.last_launch = Some(chrono::Utc::now());
                                 }
                                 // Persist the updated lock asynchronously (best-effort)
-                                if let Err(e) = self.composer.instances.save().await {
+                                if let Err(e) = self
+                                    .composer
+                                    .instances
+                                    .save(&self.composer.paths.instances_dir.join("lock.toml"))
+                                    .await
+                                {
                                     tracing::warn!(error = %e, "failed to save instances lock after launch");
                                 }
 
@@ -538,10 +543,18 @@ mod tests {
     use clients::Clients;
     use clients::github::GithubClient;
 
-    fn test_composer() -> Composer {
+    use crate::paths::AppPaths;
+
+    fn test_composer() -> (tempfile::TempDir, Composer) {
+        let tmp = tempfile::TempDir::new().expect("failed to create temp dir");
+        let paths = AppPaths {
+            root_dir: tmp.path().to_path_buf(),
+            cores_dir: tmp.path().join("cores"),
+            instances_dir: tmp.path().join("instances"),
+        };
         let client = GithubClient::new("test-owner".to_owned(), "test-repo".to_owned())
             .expect("failed to create github client");
-        Composer::new(Clients::new(client))
+        (tmp, Composer::new(Clients::new(client), paths))
     }
 
     /// Smoke test: worker корректно обрабатывает Shutdown.
@@ -552,7 +565,8 @@ mod tests {
     /// потоке — `Send` не требуется.
     #[tokio::test]
     async fn shutdown_returns_complete() {
-        let (worker, mut handle) = ComposerWorker::with_defaults(test_composer());
+        let (_tmp, composer) = test_composer();
+        let (worker, mut handle) = ComposerWorker::with_defaults(composer);
 
         // Отправляем Shutdown до запуска run() — команда попадёт в буфер канала.
         handle.commands.send(Command::Shutdown).await.unwrap();
@@ -567,7 +581,8 @@ mod tests {
     /// Smoke test: drop sender-стороны commands приводит к завершению worker'а.
     #[tokio::test]
     async fn drop_handle_stops_worker() {
-        let (worker, handle) = ComposerWorker::with_defaults(test_composer());
+        let (_tmp, composer) = test_composer();
+        let (worker, handle) = ComposerWorker::with_defaults(composer);
 
         // Дропаем handle — commands sender закрывается,
         // worker.run() увидит `None` из recv() и выйдет.

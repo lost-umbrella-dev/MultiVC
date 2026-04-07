@@ -41,6 +41,8 @@ hex = "0.4.3"
 sha2 = "0.11.0"
 # ==== Utils ====
 strum = { version = "0.28", features = ["derive"] }
+dirs = "6"
+clap = { version = "4", default-features = false, features = ["derive", "std", "help", "usage", "suggestions", "color"] }
 
 # ==== self-crates ====
 clients = { path = "crates/clients" }

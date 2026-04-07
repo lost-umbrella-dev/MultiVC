@@ -2,6 +2,8 @@
 
 use eframe::egui;
 
+use std::path::Path;
+
 use clients::hash::Hash;
 use composer::item::LockItem;
 use composer::message::Command;
@@ -21,6 +23,7 @@ pub(super) fn render(
     name: &str,
     is_running: bool,
     pid: Option<u32>,
+    instances_dir: &Path,
     lang: Lang,
 ) {
     let meta = state.installed.iter().find(|(n, _)| n == name).map(|(_, m)| m);
@@ -145,10 +148,7 @@ pub(super) fn render(
     // Path + open button
     ui.horizontal(|ui| {
         ui.strong(format!("{}:", lang::t("info.path", lang)));
-        let relative = std::path::Path::new("instances").join(name);
-        let absolute = std::env::current_dir()
-            .map(|cwd| cwd.join(&relative))
-            .unwrap_or_else(|_| relative.clone());
+        let absolute = instances_dir.join(name);
         ui.label(absolute.display().to_string());
         if ui
             .add(icon_button(icons::ICON_FOLDER))

@@ -2,6 +2,8 @@
 
 mod panel;
 
+use std::path::Path;
+
 use eframe::egui;
 use egui_toast::Toasts;
 
@@ -157,6 +159,7 @@ pub fn render(
     state: &mut InstancesTabState,
     handle: &WorkerHandle,
     installed_cores: &[(Hash, LockItem)],
+    instances_dir: &Path,
     toasts_out: &mut Toasts,
     lang: Lang,
 ) {
@@ -462,7 +465,7 @@ pub fn render(
                     });
                 }
                 if row_actions.open_folder {
-                    let folder = std::path::Path::new("instances").join(name);
+                    let folder = instances_dir.join(name);
                     open_folder(&folder, toasts_out);
                 }
                 if row_actions.delete {
@@ -508,5 +511,13 @@ pub fn render(
     }
 
     // ── Instance panel (tabbed floating window) ──────────────────
-    panel::render_instance_panel(ui, state, handle, installed_cores, toasts_out, lang);
+    panel::render_instance_panel(
+        ui,
+        state,
+        handle,
+        installed_cores,
+        instances_dir,
+        toasts_out,
+        lang,
+    );
 }

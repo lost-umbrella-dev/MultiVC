@@ -6,9 +6,6 @@ use sha2::{Digest as ShaDigest, Sha256};
 
 use crate::error::ValidationError;
 
-// Re-export for backward compatibility (moved to hash.rs)
-pub use super::hash::item_path;
-
 /// Вычисляет хеш директории и сравнивает с заданным
 pub fn hash_directory(
     path: &Path,

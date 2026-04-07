@@ -4,6 +4,8 @@ mod info_tab;
 mod log_tab;
 mod settings_tab;
 
+use std::path::Path;
+
 use eframe::egui;
 use egui_toast::Toasts;
 
@@ -19,6 +21,7 @@ pub(super) fn render_instance_panel(
     state: &mut InstancesTabState,
     handle: &WorkerHandle,
     installed_cores: &[(Hash, LockItem)],
+    instances_dir: &Path,
     toasts_out: &mut Toasts,
     lang: Lang,
 ) {
@@ -71,11 +74,21 @@ pub(super) fn render_instance_panel(
                         &instance_name,
                         is_running,
                         pid,
+                        instances_dir,
                         lang,
                     );
                 },
                 InstancePanelTab::Log => {
-                    log_tab::render(ui, state, &instance_name, is_running, pid, toasts_out, lang);
+                    log_tab::render(
+                        ui,
+                        state,
+                        &instance_name,
+                        is_running,
+                        pid,
+                        instances_dir,
+                        toasts_out,
+                        lang,
+                    );
                 },
                 InstancePanelTab::Settings => {
                     settings_tab::render(ui, state, handle, &instance_name, toasts_out, lang);
