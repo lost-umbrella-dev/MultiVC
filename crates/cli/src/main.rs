@@ -26,7 +26,7 @@ use composer::{
     name = "multivc",
     version,
     author = "TOwInOK",
-    about = "MultiVC — CLI лаунчер для VoxelCore",
+    about = "MultiVC — CLI лаунчер для VoxelCore\n",
     long_about = "MultiVC — CLI лаунчер для VoxelCore.\n\n\
         Управляет установкой, обновлением и удалением ядер VoxelCore.\n\
         Поддерживает автоматическую загрузку с GitHub, валидацию целостности\n\
@@ -59,7 +59,7 @@ enum Commands {
 
     /// Показать список установленных ядер
     // Docker exp, lmao
-    #[command(visible_aliases = ["ls", "l", "images", "i"])]
+    #[command(visible_aliases = ["ls", "l"])]
     List,
 
     /// Получить список доступных версий с GitHub

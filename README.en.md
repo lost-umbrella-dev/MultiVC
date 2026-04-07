@@ -1,83 +1,109 @@
-# MultiVC
+<p align="center">
+  <img src="docs/assets/logo.svg" width="128" alt="MultiVC logo">
+</p>
 
-[![CI](https://github.com/lost-umbrella-dev/MultiVC/actions/workflows/ci.yml/badge.svg)](https://github.com/lost-umbrella-dev/MultiVC/actions/workflows/ci.yml)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
+<h1 align="center">MultiVC</h1>
 
-> Launcher for VoxelCore — a cross-platform application for managing installation, validation, and execution of VoxelCore versions.
+<p align="center">
+  Nix-like version manager for VoxelCore
+</p>
 
-[Русский](README.md)
+<p align="center">
+  <a href="https://github.com/lost-umbrella-dev/MultiVC/actions/workflows/ci.yml"><img src="https://github.com/lost-umbrella-dev/MultiVC/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE-MIT"><img src="https://img.shields.io/badge/License-MIT%20OR%20Apache--2.0-blue.svg" alt="License: MIT OR Apache-2.0"></a>
+</p>
 
-## About
+<p align="center">
+  <a href="README.md">Русский</a>
+</p>
 
-MultiVC is a version manager for VoxelCore. The project provides two separate applications:
+---
 
-- **GUI** — graphical interface built with egui/eframe for managing cores and instances through a windowed application.
-- **CLI** — command-line interface built with clap for automation and server-side usage.
+MultiVC manages VoxelCore engine versions as dependencies: each version is installed once, and instances (game worlds) reference the version they need by hash. The application is fully portable — it only creates local folders `cores/`, `instances/` and a `settings.toml` file (GUI), with no writes to the registry or global configs.
 
-Both applications are built and distributed independently.
+Available as **GUI** (egui) and **CLI** (clap). Both do the same thing — manage cores, create instances, launch the game.
 
-Key features:
+## Screenshots
+
+<!-- TODO: add actual screenshots -->
+
+| Cores | Instances |
+|:-----:|:---------:|
+| ![Cores tab](docs/assets/gui-cores.png) | ![Instances tab](docs/assets/gui-instances.png) |
+
+<p align="center">
+  <img src="docs/assets/cli-demo.gif" alt="CLI demo" width="600">
+</p>
+
+## Features
 
 - Install and update VoxelCore versions from GitHub Releases
-- Validate integrity of downloaded files (SHA-256)
-- Manage multiple instances with separate configurations
+- Instance management — separate configs, dependencies, launch
+- File integrity validation (SHA-256)
 - Parallel downloads with progress reporting
+- Launch and stop instances from GUI and CLI
+- i18n — Russian and English interface (GUI)
 
-## Supported Platforms
+## How It Works
 
-| Tier | Platform | Status                                            |
-| ---- | -------- | ------------------------------------------------- |
-| 1    | Windows  | Fully supported                                   |
-| 2    | Linux    | Supported                                         |
-| 3    | macOS    | Limited support (VoxelCore engine limitations)     |
+MultiVC creates a portable structure next to the executable:
+
+```
+multivc
+├── cores/                # installed engine versions
+│   ├── lock.toml         # registry: hash → version, timestamp
+│   └── sha256:a1b2c3…/   # directory for a specific version
+│       ├── core.exe       # executable (Windows)
+│       └── res/           # engine resources
+├── instances/            # game worlds
+│   ├── lock.toml         # registry: name → metadata (icon, banner)
+│   └── my_world/         # instance directory
+│       └── instance.toml # config: core (hash), description, dependencies
+└── settings.toml         # GUI settings (language)
+```
+
+Cores are dependencies. An instance references a core by hash. You cannot delete a core while at least one instance depends on it.
+
+## Platforms
+
+| Tier | Platform | Status |
+|------|----------|--------|
+| 1    | Windows  | Fully supported |
+| 2    | Linux    | Supported |
+| 3    | macOS    | Limited (VoxelCore engine limitations) |
 
 ## Installation
 
-Pre-built binaries are available on the [GitHub Releases](https://github.com/lost-umbrella-dev/MultiVC/releases) page.
+Pre-built binaries on the [Releases](https://github.com/lost-umbrella-dev/MultiVC/releases) page.
 
-### GUI
-
-```bash
-gh release download --repo lost-umbrella-dev/MultiVC --pattern '*gui*'
-```
-
-### CLI
+## Quick Start (CLI)
 
 ```bash
-gh release download --repo lost-umbrella-dev/MultiVC --pattern '*cli*'
-```
+multivc install 0.31.1       # Install a core
+multivc ls                   # List installed cores
+multivc fetch                # Available versions from GitHub
 
-List available commands:
+multivc new my_world 0.31.1  # Create an instance
+multivc instances            # List instances
+multivc launch my_world      # Launch the game
 
-```bash
-multivc --help
+multivc check                # Validate integrity
+multivc rm 0.31.1            # Remove a core
 ```
 
 ## Building from Source
 
-Requirements:
-
-- [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
+Requirements: [Rust](https://www.rust-lang.org/tools/install) (stable)
 
 ```bash
 git clone https://github.com/lost-umbrella-dev/MultiVC.git
 cd MultiVC
+cargo build -p gui --release   # GUI
+cargo build -p cli --release   # CLI
 ```
 
-Build GUI:
-
-```bash
-cargo build -p gui --release
-```
-
-Build CLI:
-
-```bash
-cargo build -p cli --release
-```
-
-Compiled binaries are located in `target/release/`.
+Binaries in `target/release/`.
 
 ## License
 
-This project is dual-licensed under [MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE).
+[MIT](LICENSE-MIT) OR [Apache-2.0](LICENSE-APACHE)
