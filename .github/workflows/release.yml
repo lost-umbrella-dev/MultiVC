@@ -111,14 +111,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install git-cliff
+      - name: Generate changelog
         uses: orhun/git-cliff-action@v4
         id: changelog
         with:
           config: cliff.toml
           args: --latest --strip header
         env:
-          GITHUB_REPO: ${{ github.repository }}
+          OUTPUT: CHANGELOG.md
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -133,5 +133,5 @@ jobs:
           gh release create "${{ github.ref_name }}" \
             --repo "${{ github.repository }}" \
             --title "MultiVC ${{ github.ref_name }}" \
-            --notes-file "${{ steps.changelog.outputs.changelog }}" \
+            --notes-file CHANGELOG.md \
             artifacts/*
