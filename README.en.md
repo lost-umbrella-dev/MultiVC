@@ -25,11 +25,9 @@ Available as **GUI** (egui) and **CLI** (clap). Both do the same thing — manag
 
 ## Screenshots
 
-<!-- TODO: add actual screenshots -->
-
 | Cores | Instances |
 |:-----:|:---------:|
-| ![Cores tab](docs/assets/gui-cores.png) | ![Instances tab](docs/assets/gui-instances.png) |
+| ![Cores tab](docs/assets/gui-cores.webp) | ![Instances tab](docs/assets/gui-instances.webp) |
 
 <p align="center">
   <img src="docs/assets/cli-demo.gif" alt="CLI demo" width="600">
