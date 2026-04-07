@@ -99,8 +99,6 @@ pub fn render(
         }
     });
 
-    ui.separator();
-
     // ── Delete confirmation modal ────────────────────────────────
     if let Some((ref hash, ref display_name)) = state.confirm_remove.clone() {
         let msg = format!("{} \"{}\"?", lang::t("confirm.delete_core", lang), display_name);
@@ -122,6 +120,7 @@ pub fn render(
 
     // ── Installed cores (max 10 rows, full width) ────────────────
     if !state.installed.is_empty() {
+        ui.separator();
         ui.label(egui::RichText::new(lang::t("section.installed", lang)).strong().size(14.0));
 
         // Header
