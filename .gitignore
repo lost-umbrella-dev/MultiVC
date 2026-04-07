@@ -10,3 +10,4 @@ instances
 .claude/settings.local.json
 .claude/worktrees
 settings.toml
+**/superpowers/*
