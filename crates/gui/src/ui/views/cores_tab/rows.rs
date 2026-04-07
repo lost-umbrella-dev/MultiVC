@@ -12,6 +12,7 @@ use crate::ui::widgets::{ProgressRing, icon_button, striped_frame};
 pub(super) struct RowActions {
     pub(super) delete: bool,
     pub(super) create_instance: bool,
+    pub(super) redownload: bool,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -22,6 +23,9 @@ pub(super) fn installed_core_row(
     hash_short: &str,
     hash_full: &str,
     dependents: &[String],
+    is_invalid: bool,
+    is_downloading: bool,
+    download_fraction: Option<f32>,
     striped_bg: bool,
     lang: Lang,
 ) -> RowActions {
@@ -49,7 +53,21 @@ pub(super) fn installed_core_row(
                 .on_hover_text(hash_full);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui
+                // First button slot: create instance OR redownload/progress
+                if is_downloading {
+                    ui.add(ProgressRing::new(download_fraction));
+                } else if is_invalid {
+                    if ui
+                        .add(icon_button(
+                            egui::RichText::new(icons::ICON_DOWNLOAD)
+                                .color(egui::Color32::from_rgb(255, 165, 0)),
+                        ))
+                        .on_hover_text(lang::t("tip.redownload", lang))
+                        .clicked()
+                    {
+                        actions.redownload = true;
+                    }
+                } else if ui
                     .add(icon_button("+"))
                     .on_hover_text(lang::t("tip.create_instance", lang))
                     .clicked()
@@ -57,6 +75,7 @@ pub(super) fn installed_core_row(
                     actions.create_instance = true;
                 }
 
+                // Second button slot: delete (always shown)
                 if has_dependents {
                     let tooltip = format!("Used by: [ {} ]", dependents.join(", "));
                     let btn = icon_button(

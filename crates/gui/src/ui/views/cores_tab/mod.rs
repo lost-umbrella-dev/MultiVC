@@ -66,7 +66,7 @@ pub fn render(
         {
             state.busy = true;
             handle.try_send(Command::ValidateCores);
-            toasts::info(toasts_out, lang::t("toast.cores_valid", lang));
+            toasts::info(toasts_out, lang::t("status.validating", lang));
         }
 
         // Refresh
@@ -162,6 +162,15 @@ pub fn render(
         let max_rows = 10;
         let max_height = row_height * max_rows as f32;
 
+        // Build set of invalid core hashes from validation results
+        let invalid_hashes: HashSet<&Hash> = state
+            .validation
+            .iter()
+            .map(|r| match r {
+                ValidateReason::HashNotMatcher(h, _) | ValidateReason::NotFound(h, _) => h,
+            })
+            .collect();
+
         egui::ScrollArea::vertical().id_salt("installed_cores_scroll").max_height(max_height).show(
             ui,
             |ui| {
@@ -179,6 +188,13 @@ pub fn render(
 
                     let dependents =
                         state.core_dependents.get(hash).map(|v| v.as_slice()).unwrap_or(&[]);
+                    let is_invalid = invalid_hashes.contains(hash);
+                    let is_downloading = state.downloads.is_active(&lock_item.item);
+                    let download_fraction = if is_downloading {
+                        state.downloads.fraction(&lock_item.item)
+                    } else {
+                        None
+                    };
 
                     let row_actions = installed_core_row(
                         ui,
@@ -187,6 +203,9 @@ pub fn render(
                         &short,
                         &hash_str,
                         dependents,
+                        is_invalid,
+                        is_downloading,
+                        download_fraction,
                         row_idx % 2 == 1,
                         lang,
                     );
@@ -194,6 +213,12 @@ pub fn render(
                     if row_actions.delete && !global_busy {
                         let display = format!("{} {}", lock_item.item.name, lock_item.item.version);
                         request_remove = Some((hash.clone(), display));
+                    }
+                    if row_actions.redownload {
+                        let request = state.downloads.start(&lock_item.item, ctx);
+                        handle.try_send(Command::InstallCores {
+                            requests: vec![request],
+                        });
                     }
                     if row_actions.create_instance {
                         action.switch_to_instances_with_core = Some(row_idx);

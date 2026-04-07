@@ -167,13 +167,13 @@ where
             .await;
 
             let mut reasons = Vec::new();
-            let valid_items = LockMap::new();
+            let mut valid_count = 0usize;
             let mut fatal_errors = Vec::new();
 
             for result in results {
                 match result {
-                    Ok(Ok((hash, item))) => {
-                        valid_items.insert(hash, item);
+                    Ok(Ok(_)) => {
+                        valid_count += 1;
                     },
                     Ok(Err(reason)) => reasons.push(reason),
                     Err(error) => fatal_errors.push(error),
@@ -186,16 +186,8 @@ where
                 return Err(ComposerError::Validation(ValidationErrors(fatal_errors)));
             }
 
-            let valid = valid_items.len();
             let invalid = reasons.len();
-            tracing::info!(valid, invalid, total, "directory validation complete",);
-
-            // Replace items atomically: clear old entries and insert validated ones.
-            // DashMap supports interior mutability, so &self is sufficient.
-            self.items().clear();
-            for entry in valid_items.into_iter() {
-                self.items().insert(entry.0, entry.1);
-            }
+            tracing::info!(valid = valid_count, invalid, total, "directory validation complete",);
 
             Ok(reasons)
         }
