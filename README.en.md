@@ -5,7 +5,7 @@
 <h1 align="center">MultiVC</h1>
 
 <p align="center">
-  Nix-like version manager for VoxelCore
+  Nix-like version manager for <a href="https://github.com/MihailRis/voxelcore">VoxelCore</a>
 </p>
 
 <p align="center">
@@ -19,7 +19,7 @@
 
 ---
 
-MultiVC manages VoxelCore engine versions as dependencies: each version is installed once, and instances (game worlds) reference the version they need by hash. The application is fully portable — it only creates local folders `cores/`, `instances/` and a `settings.toml` file (GUI), with no writes to the registry or global configs.
+MultiVC manages [VoxelCore](https://github.com/MihailRis/voxelcore) engine versions as dependencies: each version is installed once, and instances (game worlds) reference the version they need by hash. The application is fully portable — it only creates local folders `cores/`, `instances/` and a `settings.toml` file (GUI), with no writes to the registry or global configs.
 
 Available as **GUI** (egui) and **CLI** (clap). Both do the same thing — manage cores, create instances, launch the game.
 
