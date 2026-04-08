@@ -197,7 +197,15 @@ pub fn render(
             .show(ui.ctx(), |ui| {
                 let form = state.create_form.as_mut().unwrap();
 
-                form_row(ui, lang::t("form.name", lang), &mut form.name);
+                ui.horizontal(|ui| {
+                    ui.label(lang::t("form.name", lang));
+                    ui.text_edit_singleline(&mut form.name);
+                });
+                // Strip characters forbidden in paths on Windows/Linux/macOS
+                form.name.retain(|c: char| {
+                    !c.is_control() && !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
+                });
+
                 form_row(ui, lang::t("form.description", lang), &mut form.description);
 
                 ui.horizontal(|ui| {
@@ -336,6 +344,12 @@ pub fn render(
                     ui.colored_label(
                         egui::Color32::RED,
                         format!("{}: {name}", lang::t("validation.dir_not_found", lang)),
+                    );
+                },
+                InstanceValidateReason::ConfigMissing(name, _meta) => {
+                    ui.colored_label(
+                        egui::Color32::YELLOW,
+                        format!("{}: {name}", lang::t("validation.config_missing", lang)),
                     );
                 },
             }

@@ -181,6 +181,9 @@ fn print_instance_validate_reasons(
             InstanceValidateReason::NotFound(name, _meta) => {
                 println!("  \u{2717} Папка не найдена: «{name}»");
             },
+            InstanceValidateReason::ConfigMissing(name, _meta) => {
+                println!("  \u{2717} Конфиг отсутствует: «{name}»");
+            },
         }
     }
 }

@@ -28,6 +28,8 @@ pub struct InstancesItem {
 pub enum InstanceValidateReason {
     /// Папка инстанса не найдена на диске.
     NotFound(String, InstancesItem),
+    /// Конфигурация `instance.toml` отсутствует в папке.
+    ConfigMissing(String, InstancesItem),
 }
 
 /// Lock-файл инстансов.
@@ -158,7 +160,7 @@ impl InstancesLock {
     /// Проверяет наличие папок инстансов на диске.
     ///
     /// Для каждого инстанса в lock проверяет, существует ли папка.
-    /// Удаляет из lock записи без папок и возвращает причины.
+    /// Возвращает причины невалидности, не мутирует lock.
     pub async fn validate_dir(
         &self,
         dir: &Path,
@@ -182,14 +184,20 @@ impl InstancesLock {
             tracing::info!(total, "starting instances directory validation");
 
             let mut reasons = Vec::new();
-            let valid = InstancesMap::new();
+            let mut valid_count = 0usize;
 
             for (name, meta) in entries {
                 let path = dir.join(&name);
                 match tokio::fs::metadata(&path).await {
                     Ok(m) if m.is_dir() => {
-                        tracing::debug!(name = %name, "instance directory found");
-                        valid.insert(name, meta);
+                        let config_path = path.join("instance.toml");
+                        if tokio::fs::try_exists(&config_path).await.unwrap_or(false) {
+                            tracing::debug!(name = %name, "instance directory valid");
+                            valid_count += 1;
+                        } else {
+                            tracing::warn!(name = %name, "instance.toml missing");
+                            reasons.push(InstanceValidateReason::ConfigMissing(name, meta));
+                        }
                     },
                     _ => {
                         tracing::warn!(name = %name, "instance directory not found");
@@ -198,7 +206,6 @@ impl InstancesLock {
                 }
             }
 
-            let valid_count = valid.len();
             let invalid_count = reasons.len();
             tracing::info!(
                 valid = valid_count,
@@ -206,12 +213,6 @@ impl InstancesLock {
                 total,
                 "instances validation complete"
             );
-
-            // Атомарная замена: очищаем и вставляем только валидные
-            self.items.clear();
-            for entry in valid.into_iter() {
-                self.items.insert(entry.0, entry.1);
-            }
 
             Ok(reasons)
         }

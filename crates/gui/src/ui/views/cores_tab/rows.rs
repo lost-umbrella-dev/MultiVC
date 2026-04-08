@@ -18,10 +18,8 @@ pub(super) struct RowActions {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn installed_core_row(
     ui: &mut egui::Ui,
-    name: &str,
     version: &str,
-    hash_short: &str,
-    hash_full: &str,
+    hash: &str,
     dependents: &[String],
     is_invalid: bool,
     is_downloading: bool,
@@ -38,19 +36,19 @@ pub(super) fn installed_core_row(
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             let actions_width = 60.0;
-            let version_width = 80.0;
-            let hash_width = 160.0;
-            let name_width = (ui.available_width()
+            let version_width = 120.0;
+            let hash_width = (ui.available_width()
                 - version_width
-                - hash_width
                 - actions_width
                 - ui.spacing().item_spacing.x * 4.0)
                 .max(80.0);
 
-            ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
             ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
-            ui.add_sized([hash_width, ui.available_height()], egui::Label::new(hash_short))
-                .on_hover_text(hash_full);
+            ui.add_sized(
+                [hash_width, ui.available_height()],
+                egui::Label::new(hash).truncate(),
+            )
+            .on_hover_text(hash);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // First button slot: create instance OR redownload/progress
@@ -109,7 +107,6 @@ pub(super) enum AvailableRowAction {
 /// Renders a row in the available versions list.
 pub(super) fn available_core_row(
     ui: &mut egui::Ui,
-    name: &str,
     version: &str,
     size_text: &str,
     is_downloading: bool,
@@ -128,15 +125,12 @@ pub(super) fn available_core_row(
         ui.horizontal(|ui| {
             let status_width = 30.0;
             let size_width = 80.0;
-            let version_width = 80.0;
-            let name_width = (ui.available_width()
-                - version_width
+            let version_width = (ui.available_width()
                 - size_width
                 - status_width
                 - ui.spacing().item_spacing.x * 4.0)
                 .max(80.0);
 
-            ui.add_sized([name_width, ui.available_height()], egui::Label::new(name).truncate());
             ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
             ui.add_sized([size_width, ui.available_height()], egui::Label::new(size_text));
 

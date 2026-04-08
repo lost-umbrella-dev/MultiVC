@@ -300,6 +300,8 @@ pub fn t(
         ("validation.not_found", Lang::Ru) => "Не найден",
         ("validation.dir_not_found", Lang::En) => "Directory not found",
         ("validation.dir_not_found", Lang::Ru) => "Директория не найдена",
+        ("validation.config_missing", Lang::En) => "Config missing",
+        ("validation.config_missing", Lang::Ru) => "Конфиг отсутствует",
 
         // ── Fallback ────────────────────────────────────────────
         _ => {

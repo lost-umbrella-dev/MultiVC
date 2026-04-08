@@ -126,20 +126,13 @@ pub fn render(
         // Header
         ui.horizontal(|ui| {
             let actions_width = 60.0;
-            let version_width = 80.0;
-            let hash_width = 160.0;
-            let name_width = (ui.available_width()
+            let version_width = 120.0;
+            let hash_width = (ui.available_width()
                 - version_width
-                - hash_width
                 - actions_width
                 - ui.spacing().item_spacing.x * 4.0)
                 .max(80.0);
             let row_height = ui.text_style_height(&egui::TextStyle::Body);
-
-            ui.add_sized(
-                [name_width, row_height],
-                egui::Label::new(egui::RichText::new(lang::t("col.name", lang)).strong()),
-            );
 
             ui.add_sized(
                 [version_width, row_height],
@@ -179,11 +172,6 @@ pub fn render(
 
                 for (row_idx, (hash, lock_item)) in state.installed.iter().enumerate() {
                     let hash_str = hash.to_string();
-                    let short = if hash_str.len() > 20 {
-                        format!("{}...", &hash_str[..20])
-                    } else {
-                        hash_str.clone()
-                    };
 
                     let dependents =
                         state.core_dependents.get(hash).map(|v| v.as_slice()).unwrap_or(&[]);
@@ -197,9 +185,7 @@ pub fn render(
 
                     let row_actions = installed_core_row(
                         ui,
-                        &lock_item.item.name,
                         &lock_item.item.version.to_string(),
-                        &short,
                         &hash_str,
                         dependents,
                         is_invalid,
@@ -275,19 +261,12 @@ pub fn render(
         ui.horizontal(|ui| {
             let status_width = 30.0;
             let size_width = 80.0;
-            let version_width = 80.0;
-            let name_width = (ui.available_width()
-                - version_width
+            let version_width = (ui.available_width()
                 - size_width
                 - status_width
                 - ui.spacing().item_spacing.x * 4.0)
                 .max(80.0);
             let row_height = ui.text_style_height(&egui::TextStyle::Body);
-
-            ui.add_sized(
-                [name_width, row_height],
-                egui::Label::new(egui::RichText::new(lang::t("col.name", lang)).strong()),
-            );
 
             ui.add_sized(
                 [version_width, row_height],
@@ -319,7 +298,6 @@ pub fn render(
 
                 let row_action = available_core_row(
                     ui,
-                    &item.name,
                     &item.version.to_string(),
                     &crate::ui::format_size(item.size),
                     is_downloading,
