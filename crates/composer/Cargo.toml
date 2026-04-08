@@ -12,7 +12,9 @@ readme.workspace = true
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
+builder.workspace = true
 clients.workspace = true
+dir-hash.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs", "rt", "process", "macros"] }
 tracing.workspace = true
@@ -20,9 +22,6 @@ toml = "1.1.2"
 futures-util = "0.3.32"
 chrono = { workspace = true, features = ["serde", "clock"] }
 dashmap = { version = "6.1.0", features = ["serde"] }
-digest.workspace = true
-hex.workspace = true
-sha2.workspace = true
 tempfile = "3.27.0"
 dirs.workspace = true
 zip = { version = "2.4.2", default-features = false, features = ["deflate"] }

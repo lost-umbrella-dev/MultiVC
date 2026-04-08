@@ -1,5 +1,8 @@
+mod build_progress_bar;
 mod progress_ring;
 
+#[allow(unused_imports)]
+pub use build_progress_bar::BuildProgressBar;
 pub use progress_ring::ProgressRing;
 
 use base64::Engine as _;

@@ -453,6 +453,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "builder"
+version = "1.0.0"
+dependencies = [
+ "clients",
+ "serde",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -636,6 +647,7 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 name = "cli"
 version = "1.0.0"
 dependencies = [
+ "builder",
  "clap",
  "clients",
  "composer",
@@ -725,15 +737,14 @@ dependencies = [
 name = "composer"
 version = "1.0.0"
 dependencies = [
+ "builder",
  "chrono",
  "clients",
  "dashmap",
- "digest",
+ "dir-hash",
  "dirs",
  "futures-util",
- "hex",
  "serde",
- "sha2",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -904,6 +915,17 @@ dependencies = [
  "block-buffer",
  "const-oid",
  "crypto-common",
+]
+
+[[package]]
+name = "dir-hash"
+version = "1.0.0"
+dependencies = [
+ "clients",
+ "digest",
+ "hex",
+ "sha2",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1627,6 +1649,7 @@ name = "gui"
 version = "1.0.0"
 dependencies = [
  "base64",
+ "builder",
  "chrono",
  "clap",
  "clients",

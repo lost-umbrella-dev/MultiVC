@@ -11,6 +11,7 @@ use composer::lock::instance::Instance;
 use composer::lock::instances::{InstanceValidateReason, InstancesItem};
 use composer::paths::AppPaths;
 
+use crate::ui::build_tracker::BuildTracker;
 use crate::ui::download_tracker::DownloadTracker;
 
 // ── Sort state ───────────────────────────────────────────────────────
@@ -174,6 +175,20 @@ pub struct CoresTabState {
     /// Маппинг: хэш ядра → список имён инстансов, использующих это ядро.
     /// Заполняется при загрузке конфигов инстансов.
     pub core_dependents: HashMap<Hash, Vec<String>>,
+    /// Per-item build trackers.
+    pub builds: BuildTracker,
+    /// Items selected for building from source.
+    pub pending_builds: Vec<Item>,
+    /// State for the deps installation confirmation modal.
+    pub deps_modal: Option<DepsModalState>,
+    /// Versions with extracted source in .source/ dir.
+    pub source_versions: HashSet<String>,
+}
+
+/// State for the dependency installation confirmation modal.
+pub struct DepsModalState {
+    pub missing: Vec<String>,
+    pub install_command: Option<String>,
 }
 
 // ── Instances tab ────────────────────────────────────────────────────

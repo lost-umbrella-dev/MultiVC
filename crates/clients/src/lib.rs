@@ -29,6 +29,6 @@ pub mod prelude {
     pub use crate::download::{DownloadProgress, ProgressSink, download};
     pub use crate::error::{ClientError, Result};
     pub use crate::hash::Hash;
-    pub use crate::item::{Item, ItemDependence};
+    pub use crate::item::{BUILD_AVAILABLE, CoreOrigin, Item, ItemDependence, RELEASE_AVAILABLE};
     pub use crate::version::Version;
 }

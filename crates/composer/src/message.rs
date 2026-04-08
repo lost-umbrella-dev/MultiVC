@@ -120,6 +120,22 @@ pub enum Command {
         name: String,
     },
 
+    /// Build cores from source (download zipball -> extract -> cmake build).
+    BuildCores {
+        requests: Vec<BuildCoreRequest>,
+    },
+
+    /// Check if build dependencies are present on this platform.
+    CheckBuildDeps,
+
+    /// Install build dependencies (user confirmed via modal).
+    InstallBuildDeps,
+
+    /// Remove extracted source for a version.
+    RemoveSource {
+        version: Version,
+    },
+
     /// Завершить background-поток.
     Shutdown,
 }
@@ -203,6 +219,23 @@ pub enum Event {
         bytes: u64,
     },
 
+    /// Build from source completed.
+    CoresBuilt(CoresBuiltResult),
+
+    /// Build dependency check result.
+    BuildDepsStatus {
+        missing: Vec<String>,
+        install_command: Option<String>,
+    },
+
+    /// Build dependencies installed.
+    BuildDepsInstalled(Result<(), ComposerError>),
+
+    /// Source removed.
+    SourceRemoved {
+        version: Version,
+    },
+
     /// Произошла фатальная ошибка.
     Error(ComposerError),
 
@@ -216,4 +249,18 @@ pub struct CoresInstalledResult {
     pub successful: usize,
     /// Элементы, которые не удалось установить.
     pub failed: Vec<(Item, ComposerError)>,
+}
+
+/// Request to build a core from source.
+pub struct BuildCoreRequest {
+    pub item: clients::item::Item,
+    pub progress: builder::BuildProgress,
+}
+
+/// Result of building cores from source.
+pub struct CoresBuiltResult {
+    /// Количество успешно собранных элементов.
+    pub successful: usize,
+    /// Элементы, которые не удалось собрать.
+    pub failed: Vec<(clients::version::Version, ComposerError)>,
 }

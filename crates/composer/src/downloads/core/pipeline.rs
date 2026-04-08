@@ -4,7 +4,7 @@ use chrono::Utc;
 use clients::ProgressSink;
 use clients::github::GithubClient;
 use clients::hash::Hash;
-use clients::item::Item;
+use clients::item::{CoreOrigin, Item};
 use tempfile::TempDir;
 use tokio::io::AsyncWriteExt;
 use tracing::Instrument;
@@ -53,6 +53,7 @@ pub async fn download_and_prepare(
                 LockItem {
                     item,
                     timestamp: Utc::now(),
+                    origin: CoreOrigin::Release,
                 },
             ))
         },

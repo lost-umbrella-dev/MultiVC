@@ -47,6 +47,8 @@ clap = { version = "4", default-features = false, features = ["derive", "std", "
 # ==== self-crates ====
 clients = { path = "crates/clients" }
 composer = { path = "crates/composer" }
+builder = { path = "crates/builder" }
+dir-hash = { path = "crates/dir-hash" }
 
 [workspace.lints.clippy]
 # https://users.rust-lang.org/t/to-string-vs-to-owned-for-string-literals/1441

@@ -1,5 +1,6 @@
 //! UI rendering: views, widgets, icons, i18n, toasts.
 
+pub mod build_tracker;
 pub mod download_tracker;
 pub mod icons;
 pub mod lang;
@@ -63,10 +64,10 @@ pub fn render_ui(
 ) {
     let mut toasts_instance = toasts::create_toasts();
 
-    // Drain worker events first — updates state before render
-    App::drain_and_apply_events(args.state, args.handle, &mut toasts_instance);
-
     let ctx = ui.ctx().clone();
+
+    // Drain worker events first — updates state before render
+    App::drain_and_apply_events(args.state, args.handle, &mut toasts_instance, &ctx);
 
     // Bottom panel — navigation bar
     egui::Panel::bottom("nav_panel").resizable(false).default_size(30.0).show_inside(ui, |ui| {
@@ -82,12 +83,14 @@ pub fn render_ui(
     egui::CentralPanel::default().show_inside(ui, |ui| match *args.current_tab {
         Tab::Cores => {
             let lang = args.state.settings.lock.language;
+            let install_mode = args.state.settings.lock.install_mode;
             let action = views::cores_tab::render(
                 ui,
                 &ctx,
                 &mut args.state.cores,
                 args.handle,
                 &mut toasts_instance,
+                install_mode,
                 lang,
             );
 

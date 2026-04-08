@@ -1,0 +1,11 @@
+[package]
+name = "builder"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+clients.workspace = true
+tokio = { workspace = true, features = ["process", "io-util", "fs"] }
+tracing.workspace = true
+thiserror.workspace = true
+serde.workspace = true

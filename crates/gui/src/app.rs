@@ -7,7 +7,7 @@ use eframe::egui;
 use egui_toast::Toasts;
 
 use composer::error::ComposerError;
-use composer::message::{Command, CoresInstalledResult, Event};
+use composer::message::{Command, CoresBuiltResult, CoresInstalledResult, Event};
 use composer::paths::AppPaths;
 use composer::worker::WorkerHandle;
 
@@ -54,11 +54,12 @@ impl App {
         state: &mut UiState,
         handle: &mut WorkerHandle,
         toasts: &mut Toasts,
+        ctx: &egui::Context,
     ) {
         let events = handle.drain_events();
         let lang = state.settings.lock.language;
         for event in events {
-            Self::apply_event(state, handle, event, toasts, lang);
+            Self::apply_event(state, handle, event, toasts, lang, ctx);
         }
     }
 
@@ -68,6 +69,7 @@ impl App {
         event: Event,
         toasts: &mut Toasts,
         lang: Lang,
+        ctx: &egui::Context,
     ) {
         match event {
             Event::Saved(Ok(())) => {
@@ -355,6 +357,104 @@ impl App {
                 {
                     panel.dir_size = Some(bytes);
                 }
+            },
+
+            Event::CoresBuilt(CoresBuiltResult {
+                successful,
+                failed,
+            }) => {
+                // Clear all build trackers for completed builds
+                let built_versions: Vec<String> = state
+                    .cores
+                    .installed
+                    .iter()
+                    .map(|(_, li)| li.item.version.to_string())
+                    .collect();
+                state.cores.builds.complete_built(&built_versions);
+                state.cores.pending_builds.clear();
+
+                if failed.is_empty() {
+                    toasts::success(
+                        toasts,
+                        format!("{}: {successful}", lang::t("toast.build_complete", lang)),
+                    );
+                } else {
+                    let errors: Vec<String> =
+                        failed.iter().map(|(v, err)| format!("  {v}: {err}")).collect();
+                    toasts::error(
+                        toasts,
+                        format!(
+                            "{}: {successful}, {}:\n{}",
+                            lang::t("toast.build_complete", lang),
+                            lang::t("toast.build_err", lang),
+                            errors.join("\n")
+                        ),
+                    );
+                }
+
+                // Refresh cores list after build
+                handle.try_send(Command::GetCoresItems);
+            },
+
+            Event::BuildDepsStatus {
+                missing,
+                install_command,
+            } => {
+                state.cores.busy = false;
+                if missing.is_empty() {
+                    // No missing deps — proceed to build directly
+                    let items: Vec<_> = state.cores.pending_builds.drain(..).collect();
+                    let requests: Vec<_> = items
+                        .into_iter()
+                        .map(|item| {
+                            let progress = state.cores.builds.start(&item, ctx);
+                            composer::message::BuildCoreRequest {
+                                item,
+                                progress,
+                            }
+                        })
+                        .collect();
+                    handle.try_send(Command::BuildCores {
+                        requests,
+                    });
+                } else {
+                    state.cores.deps_modal = Some(crate::ui::state::DepsModalState {
+                        missing,
+                        install_command,
+                    });
+                }
+            },
+
+            Event::BuildDepsInstalled(result) => match result {
+                Ok(()) => {
+                    toasts::success(toasts, lang::t("toast.deps_installed", lang));
+                    // Now proceed to build
+                    let items: Vec<_> = state.cores.pending_builds.drain(..).collect();
+                    let requests: Vec<_> = items
+                        .into_iter()
+                        .map(|item| {
+                            let progress = state.cores.builds.start(&item, ctx);
+                            composer::message::BuildCoreRequest {
+                                item,
+                                progress,
+                            }
+                        })
+                        .collect();
+                    handle.try_send(Command::BuildCores {
+                        requests,
+                    });
+                },
+                Err(e) => {
+                    state.cores.busy = false;
+                    toasts::error(toasts, format!("{}: {e}", lang::t("toast.deps_err", lang)));
+                },
+            },
+
+            Event::SourceRemoved {
+                version,
+            } => {
+                state.cores.source_versions.remove(&version.to_string());
+                toasts::info(toasts, lang::t("toast.source_removed", lang));
             },
 
             Event::Error(ref e) => match e {

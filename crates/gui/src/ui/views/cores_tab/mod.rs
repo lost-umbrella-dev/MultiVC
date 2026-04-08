@@ -10,12 +10,14 @@ use egui_toast::Toasts;
 
 use clients::github::GitHubListOptions;
 use clients::hash::Hash;
+use clients::item::{BUILD_AVAILABLE, RELEASE_AVAILABLE};
 use composer::lock::ValidateReason;
 use composer::message::Command;
 use composer::worker::WorkerHandle;
 
 use crate::ui::icons;
 use crate::ui::lang::{self, Lang};
+use crate::ui::settings::InstallMode;
 use crate::ui::state::CoresTabState;
 use crate::ui::toasts;
 use crate::ui::widgets::{confirm_dialog, icon_button, tab_toolbar};
@@ -37,6 +39,7 @@ pub fn render(
     state: &mut CoresTabState,
     handle: &WorkerHandle,
     toasts_out: &mut Toasts,
+    install_mode: InstallMode,
     lang: Lang,
 ) -> CoresTabAction {
     let mut action = CoresTabAction {
@@ -54,7 +57,8 @@ pub fn render(
         });
     }
 
-    let global_busy = state.busy || state.downloads.has_active();
+    let global_busy =
+        state.busy || state.downloads.has_active() || state.builds.has_active() || state.deps_modal.is_some();
 
     // ── Toolbar (right-aligned icons) ────────────────────────────
     tab_toolbar(ui, lang::t("tab.cores", lang), |ui| {
@@ -97,6 +101,20 @@ pub fn render(
                 });
             }
         }
+
+        // Build selected — only shown when there are pending build items
+        let pending_build_count = state.pending_builds.len();
+        if pending_build_count > 0 {
+            let label = format!("{} ({})", lang::t("action.build", lang), pending_build_count);
+            if ui
+                .add_enabled(!global_busy, egui::Button::new(label))
+                .on_hover_text(lang::t("tip.build", lang))
+                .clicked()
+            {
+                state.busy = true;
+                handle.try_send(Command::CheckBuildDeps);
+            }
+        }
     });
 
     // ── Delete confirmation modal ────────────────────────────────
@@ -118,6 +136,41 @@ pub fn render(
         }
     }
 
+    // ── Deps installation confirmation modal ────────────────────
+    if let Some(ref deps) = state.deps_modal {
+        let mut close = false;
+        egui::Window::new(lang::t("modal.deps_title", lang))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ui.ctx(), |ui| {
+                ui.label(lang::t("modal.deps_message", lang));
+                ui.add_space(4.0);
+                for dep in &deps.missing {
+                    ui.label(format!("  \u{2022} {dep}"));
+                }
+                if let Some(ref cmd) = deps.install_command {
+                    ui.add_space(4.0);
+                    ui.label(lang::t("modal.deps_command", lang));
+                    ui.code(cmd);
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button(lang::t("modal.deps_confirm", lang)).clicked() {
+                        state.busy = true;
+                        handle.try_send(Command::InstallBuildDeps);
+                        close = true;
+                    }
+                    if ui.button(lang::t("action.cancel", lang)).clicked() {
+                        close = true;
+                    }
+                });
+            });
+        if close {
+            state.deps_modal = None;
+        }
+    }
+
     // ── Installed cores (max 10 rows, full width) ────────────────
     if !state.installed.is_empty() {
         ui.separator();
@@ -127,26 +180,26 @@ pub fn render(
         ui.horizontal(|ui| {
             let actions_width = 60.0;
             let version_width = 80.0;
-            let hash_width = 160.0;
-            let name_width = (ui.available_width()
+            let type_width = 60.0;
+            let hash_width = (ui.available_width()
                 - version_width
-                - hash_width
+                - type_width
                 - actions_width
                 - ui.spacing().item_spacing.x * 4.0)
                 .max(80.0);
             let row_height = ui.text_style_height(&egui::TextStyle::Body);
 
             ui.add_sized(
-                [name_width, row_height],
-                egui::Label::new(egui::RichText::new(lang::t("col.name", lang)).strong()),
-            );
-
-            ui.add_sized(
                 [version_width, row_height],
                 egui::Label::new(egui::RichText::new(lang::t("col.version", lang)).strong()),
             );
 
-            // Hash header (not sortable)
+            ui.add_sized(
+                [type_width, row_height],
+                egui::Label::new(egui::RichText::new(lang::t("col.type", lang)).strong()),
+            );
+
+            // Hash header
             ui.add_sized(
                 [hash_width, row_height],
                 egui::Label::new(egui::RichText::new(lang::t("col.hash", lang)).strong()),
@@ -197,7 +250,6 @@ pub fn render(
 
                     let row_actions = installed_core_row(
                         ui,
-                        &lock_item.item.name,
                         &lock_item.item.version.to_string(),
                         &short,
                         &hash_str,
@@ -206,6 +258,7 @@ pub fn render(
                         is_downloading,
                         download_fraction,
                         row_idx % 2 == 1,
+                        lock_item.origin,
                         lang,
                     );
 
@@ -271,26 +324,28 @@ pub fn render(
 
         ui.label(egui::RichText::new(lang::t("section.available", lang)).strong().size(14.0));
 
+        let show_release = install_mode.has_release() && RELEASE_AVAILABLE;
+        let show_build = install_mode.has_build() && BUILD_AVAILABLE;
+
         // Column headers
         ui.horizontal(|ui| {
-            let status_width = 30.0;
+            let rb_width = 30.0;
             let size_width = 80.0;
-            let version_width = 80.0;
-            let name_width = (ui.available_width()
-                - version_width
+
+            let trailing = if show_build { rb_width } else { 0.0 }
+                + if show_release { rb_width } else { 0.0 };
+            let spacing_count =
+                1.0 + if show_build { 1.0 } else { 0.0 } + if show_release { 1.0 } else { 0.0 };
+
+            let version_col_width = (ui.available_width()
                 - size_width
-                - status_width
-                - ui.spacing().item_spacing.x * 4.0)
+                - trailing
+                - ui.spacing().item_spacing.x * spacing_count)
                 .max(80.0);
             let row_height = ui.text_style_height(&egui::TextStyle::Body);
 
             ui.add_sized(
-                [name_width, row_height],
-                egui::Label::new(egui::RichText::new(lang::t("col.name", lang)).strong()),
-            );
-
-            ui.add_sized(
-                [version_width, row_height],
+                [version_col_width, row_height],
                 egui::Label::new(egui::RichText::new(lang::t("col.version", lang)).strong()),
             );
 
@@ -299,27 +354,59 @@ pub fn render(
                 [size_width, row_height],
                 egui::Label::new(egui::RichText::new(lang::t("col.size", lang)).strong()),
             );
-            // Status header (empty)
-            ui.add_sized([status_width, row_height], egui::Label::new(""));
+
+            if show_release {
+                ui.add_sized(
+                    [rb_width, row_height],
+                    egui::Label::new(egui::RichText::new("R").strong()),
+                )
+                .on_hover_text(lang::t("tip.release", lang));
+            }
+
+            if show_build {
+                ui.add_sized(
+                    [rb_width, row_height],
+                    egui::Label::new(egui::RichText::new("B").strong()),
+                )
+                .on_hover_text(lang::t("tip.build", lang));
+            }
         });
 
-        let installed_names: HashSet<&str> =
-            state.installed.iter().map(|(_, li)| li.item.name.as_str()).collect();
+        // Build sets of installed names by origin
+        let installed_release: HashSet<&str> = state
+            .installed
+            .iter()
+            .filter(|(_, li)| li.origin == clients::item::CoreOrigin::Release)
+            .map(|(_, li)| li.item.name.as_str())
+            .collect();
+        let installed_build: HashSet<&str> = state
+            .installed
+            .iter()
+            .filter(|(_, li)| li.origin == clients::item::CoreOrigin::Build)
+            .map(|(_, li)| li.item.name.as_str())
+            .collect();
 
         egui::ScrollArea::vertical().id_salt("available_cores_scroll").show(ui, |ui| {
             ui.set_width(ui.available_width());
 
             for (row_idx, item) in state.available.iter().enumerate() {
                 let is_downloading = state.downloads.is_active(item);
-                let is_installed = installed_names.contains(item.name.as_str());
-                let is_selected = state
+                let is_building = state.builds.is_active(item);
+                let build_progress = state.builds.progress(item);
+                let is_installed_release = installed_release.contains(item.name.as_str());
+                let is_installed_build = installed_build.contains(item.name.as_str());
+                let is_selected_download = state
                     .pending_installs
                     .iter()
                     .any(|p| p.name == item.name && p.version == item.version);
+                let is_selected_build = state
+                    .pending_builds
+                    .iter()
+                    .any(|p| p.name == item.name && p.version == item.version);
+                let has_source = state.source_versions.contains(&item.version.to_string());
 
                 let row_action = available_core_row(
                     ui,
-                    &item.name,
                     &item.version.to_string(),
                     &crate::ui::format_size(item.size),
                     is_downloading,
@@ -328,22 +415,44 @@ pub fn render(
                     } else {
                         None
                     },
-                    is_installed,
-                    is_selected,
+                    is_building,
+                    build_progress,
+                    is_installed_release,
+                    is_installed_build,
+                    is_selected_download,
+                    is_selected_build,
+                    show_release,
+                    show_build,
+                    has_source,
                     row_idx % 2 == 1,
                     lang,
                 );
 
                 match row_action {
-                    AvailableRowAction::Select => {
-                        if !is_selected {
+                    AvailableRowAction::SelectDownload => {
+                        if !is_selected_download {
                             state.pending_installs.push(item.clone());
                         }
                     },
-                    AvailableRowAction::Deselect => {
+                    AvailableRowAction::DeselectDownload => {
                         state
                             .pending_installs
                             .retain(|p| !(p.name == item.name && p.version == item.version));
+                    },
+                    AvailableRowAction::SelectBuild => {
+                        if !is_selected_build {
+                            state.pending_builds.push(item.clone());
+                        }
+                    },
+                    AvailableRowAction::DeselectBuild => {
+                        state
+                            .pending_builds
+                            .retain(|p| !(p.name == item.name && p.version == item.version));
+                    },
+                    AvailableRowAction::DeleteSource => {
+                        handle.try_send(Command::RemoveSource {
+                            version: item.version.clone(),
+                        });
                     },
                     AvailableRowAction::None => {},
                 }

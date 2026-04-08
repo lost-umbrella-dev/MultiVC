@@ -3,6 +3,7 @@
 #[path = "common/mod.rs"]
 mod common;
 
+use clients::item::CoreOrigin;
 use composer::error::ComposerError;
 use composer::lock::Lock;
 use composer::lock::core::CoresLock;
@@ -261,4 +262,58 @@ async fn dashmap_serde_roundtrip() {
             "TOML должен содержать ключ {key}"
         );
     }
+}
+
+// ── 7. CoreOrigin defaults to Release when missing from TOML ────────
+
+#[tokio::test]
+async fn origin_defaults_to_release_when_missing() {
+    let _guard = init_test_tracing();
+
+    // 1. Create a lock with one item and serialize to TOML
+    let lock = CoresLock::default();
+    let hash = fake_hash("origin_test_hash");
+    let item = make_lock_item("origin-core", "1.0.0");
+    lock.items().insert(hash.clone(), item);
+    let toml_str = toml::to_string_pretty(&lock).unwrap();
+
+    // 2. Remove the `origin` line to simulate an old lock file
+    let toml_without_origin: String =
+        toml_str.lines().filter(|l| !l.starts_with("origin")).collect::<Vec<_>>().join("\n");
+
+    // 3. Deserialize — origin should default to Release
+    let loaded: CoresLock = toml::from_str(&toml_without_origin)
+        .expect("deserialization without origin field should succeed");
+    let loaded_item = loaded.items().get(&hash).expect("item must be present");
+    assert_eq!(
+        loaded_item.origin,
+        CoreOrigin::Release,
+        "missing origin field must default to Release"
+    );
+}
+
+// ── 8. CoreOrigin::Build roundtrips through TOML ────────────────────
+
+#[tokio::test]
+async fn origin_build_roundtrip() {
+    let _guard = init_test_tracing();
+
+    // 1. Create a lock item with origin: Build
+    let lock = CoresLock::default();
+    let hash = fake_hash("build_origin_hash");
+    let mut item = make_lock_item("built-core", "2.0.0");
+    item.origin = CoreOrigin::Build;
+    lock.items().insert(hash.clone(), item);
+
+    // 2. Serialize to TOML
+    let toml_str = toml::to_string_pretty(&lock).unwrap();
+
+    // 3. Verify "Build" appears in the serialized output
+    assert!(toml_str.contains("Build"), "serialized TOML must contain 'Build' for origin field");
+
+    // 4. Deserialize and check roundtrip
+    let loaded: CoresLock =
+        toml::from_str(&toml_str).expect("deserialization with Build origin should succeed");
+    let loaded_item = loaded.items().get(&hash).expect("item must be present");
+    assert_eq!(loaded_item.origin, CoreOrigin::Build, "origin: Build must survive TOML roundtrip");
 }

@@ -530,3 +530,95 @@ impl Composer {
         Ok(child)
     }
 }
+
+// ── Build from source ───────────────────────────────────────────────
+
+impl Composer {
+    /// Build cores from source. Sequential execution (shared source dir).
+    pub async fn install_built_cores(
+        &self,
+        requests: Vec<crate::message::BuildCoreRequest>,
+    ) -> Result<Option<Vec<(clients::version::Version, ComposerError)>>> {
+        let cores_dir = &self.paths.cores_dir;
+        tokio::fs::create_dir_all(cores_dir).await?;
+
+        let mut successful = 0usize;
+        let mut failed = Vec::new();
+
+        for request in requests {
+            match crate::downloads::core::build_pipeline::build_and_prepare(
+                &self.clients.core,
+                request.item,
+                request.progress,
+                cores_dir,
+            )
+            .await
+            {
+                Ok((hash, lock_item)) => {
+                    self.cores.items().insert(hash, lock_item);
+                    successful += 1;
+                },
+                Err((ver, err)) => {
+                    self.write_crash_log(&ver, &err).await;
+                    failed.push((ver, err));
+                },
+            }
+        }
+
+        if successful > 0 {
+            self.save_cores().await?;
+        }
+
+        if failed.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(failed))
+        }
+    }
+
+    /// Write crash-{version}-{time}.log next to settings.toml on build failure.
+    async fn write_crash_log(
+        &self,
+        version: &clients::version::Version,
+        error: &ComposerError,
+    ) {
+        let timestamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+        let filename = format!("crash-{version}-{timestamp}.log");
+        let log_path = self.paths.root_dir.join(filename);
+        let content = format!("{error}\n");
+
+        if let Err(e) = tokio::fs::write(&log_path, content.as_bytes()).await {
+            tracing::warn!(path = %log_path.display(), error = %e, "failed to write crash log");
+        }
+    }
+
+    /// Remove extracted source for a version.
+    pub async fn remove_source(
+        &self,
+        version: &clients::version::Version,
+    ) -> Result<()> {
+        let source_dir = self.paths.cores_dir.join(".source").join(version.to_string());
+        if tokio::fs::try_exists(&source_dir).await? {
+            tokio::fs::remove_dir_all(&source_dir).await?;
+        }
+        Ok(())
+    }
+
+    /// List versions that have extracted source in .source/ directory.
+    pub async fn source_versions(&self) -> Vec<clients::version::Version> {
+        let source_dir = self.paths.cores_dir.join(".source");
+        let mut versions = Vec::new();
+        if let Ok(mut entries) = tokio::fs::read_dir(&source_dir).await {
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                if let Ok(ft) = entry.file_type().await
+                    && ft.is_dir()
+                    && let Some(name) = entry.file_name().to_str()
+                    && let Ok(version) = name.parse::<clients::version::Version>()
+                {
+                    versions.push(version);
+                }
+            }
+        }
+        versions
+    }
+}

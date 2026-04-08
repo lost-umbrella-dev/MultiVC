@@ -14,6 +14,8 @@ pub enum ComposerError {
     #[error(transparent)]
     Client(#[from] ClientError),
     #[error(transparent)]
+    Builder(#[from] builder::BuilderError),
+    #[error(transparent)]
     Validation(#[from] ValidationErrors),
     #[error(transparent)]
     ValidationSingle(#[from] ValidationError),
@@ -86,3 +88,23 @@ pub enum ValidationError {
 }
 
 pub type Result<T> = std::result::Result<T, ComposerError>;
+
+impl From<dir_hash::HashError> for ValidationError {
+    fn from(err: dir_hash::HashError) -> Self {
+        match err {
+            dir_hash::HashError::Read {
+                path,
+                source,
+            } => ValidationError::Read {
+                path,
+                source,
+            },
+        }
+    }
+}
+
+impl From<dir_hash::HashError> for ComposerError {
+    fn from(err: dir_hash::HashError) -> Self {
+        ComposerError::ValidationSingle(err.into())
+    }
+}

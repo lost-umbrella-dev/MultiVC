@@ -17,6 +17,7 @@ path = "src/main.rs"
 [dependencies]
 composer.workspace = true
 clients.workspace = true
+builder.workspace = true
 clap.workspace = true
 tokio = { workspace = true, features = ["rt", "macros"] }
 tracing.workspace = true

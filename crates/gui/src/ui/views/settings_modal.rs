@@ -97,6 +97,41 @@ pub fn render(
                 ui.selectable_value(&mut state.lock.language, crate::ui::lang::Lang::En, "EN");
                 ui.selectable_value(&mut state.lock.language, crate::ui::lang::Lang::Ru, "RU");
             });
+
+            ui.separator();
+
+            // ── Install mode ───────────────────────────────────
+            ui.heading(crate::ui::lang::t("settings.install_mode", lang));
+            ui.horizontal(|ui| {
+                use crate::ui::settings::InstallMode;
+
+                let r = ui.add_enabled(
+                    clients::item::RELEASE_AVAILABLE,
+                    egui::Button::new(crate::ui::lang::t("settings.only_release", lang))
+                        .selected(state.lock.install_mode == InstallMode::OnlyRelease),
+                );
+                if r.clicked() {
+                    state.lock.install_mode = InstallMode::OnlyRelease;
+                }
+
+                let r = ui.add_enabled(
+                    clients::item::RELEASE_AVAILABLE && clients::item::BUILD_AVAILABLE,
+                    egui::Button::new(crate::ui::lang::t("settings.both", lang))
+                        .selected(state.lock.install_mode == InstallMode::Both),
+                );
+                if r.clicked() {
+                    state.lock.install_mode = InstallMode::Both;
+                }
+
+                let r = ui.add_enabled(
+                    clients::item::BUILD_AVAILABLE,
+                    egui::Button::new(crate::ui::lang::t("settings.only_build", lang))
+                        .selected(state.lock.install_mode == InstallMode::OnlyBuild),
+                );
+                if r.clicked() {
+                    state.lock.install_mode = InstallMode::OnlyBuild;
+                }
+            });
         });
 
     if !open {

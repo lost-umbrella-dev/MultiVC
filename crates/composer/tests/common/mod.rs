@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use chrono::Utc;
 use clients::hash::Hash;
-use clients::item::Item;
+use clients::item::{CoreOrigin, Item};
 use composer::item::{LockItem, LockMap};
 use tracing::subscriber::DefaultGuard;
 use tracing_subscriber::EnvFilter;
@@ -65,6 +65,7 @@ pub fn make_lock_item(
     LockItem {
         item: make_item(name, version),
         timestamp: Utc::now(),
+        origin: CoreOrigin::Release,
     }
 }
 

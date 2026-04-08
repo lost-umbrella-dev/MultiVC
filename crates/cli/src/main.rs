@@ -34,6 +34,7 @@ use composer::{
         и хранение состояния в lock-файлах.",
     after_help = "Примеры:\n  \
         multivc install 0.31.1       Установить ядро v0.31.1\n  \
+        multivc build 0.31.1         Собрать ядро v0.31.1 из исходников\n  \
         multivc ls                   Список установленных ядер\n  \
         multivc instances            Список инстансов\n  \
         multivc fetch                Все доступные версии с GitHub\n  \
@@ -113,6 +114,13 @@ enum Commands {
     Launch {
         /// Имя инстанса для запуска
         name: String,
+    },
+
+    /// Собрать ядро из исходников
+    #[command(visible_aliases = ["b"])]
+    Build {
+        /// Версия ядра для сборки (например "0.31.1" или "v0.31.1")
+        version: Version,
     },
 }
 
@@ -539,6 +547,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("\u{2717} Инстанс «{name}» завершился с кодом {code}");
                 std::process::exit(status.code().unwrap_or(1));
             }
+        },
+
+        // ── build ───────────────────────────────────────────────
+        Commands::Build {
+            version,
+        } => {
+            let version = version.with_default_prefix();
+            let query_client = create_github_client()?;
+            let item = query_client
+                .get(GitHubGetOptions {
+                    version: version.clone(),
+                })
+                .await?
+                .ok_or_else(|| format!("Ядро версии «{version}» не найдено на GitHub"))?;
+
+            println!(
+                "Сборка из исходников: {} {} ({})",
+                item.name,
+                item.version,
+                format_size(item.size),
+            );
+
+            let composer = load_composer(paths.clone()).await?;
+            let progress = builder::BuildProgress::noop();
+            let request = composer::message::BuildCoreRequest {
+                item,
+                progress,
+            };
+
+            let result = composer.install_built_cores(vec![request]).await?;
+
+            if let Some(failures) = result
+                && !failures.is_empty()
+            {
+                eprintln!("Ошибки при сборке:");
+                for (ver, err) in &failures {
+                    eprintln!("  \u{2717} «{ver}»: {err}");
+                }
+                std::process::exit(1);
+            }
+
+            println!("\u{2713} Сборка завершена успешно");
         },
     }
 

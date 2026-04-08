@@ -18,7 +18,8 @@ use tokio::sync::mpsc;
 
 use crate::Composer;
 use crate::message::{
-    Command, CoreDependentsMap, CoresInstalledResult, Event, InstancesSnapshot, ItemsSnapshot,
+    Command, CoreDependentsMap, CoresBuiltResult, CoresInstalledResult, Event, InstancesSnapshot,
+    ItemsSnapshot,
 };
 
 // ── Handles ──────────────────────────────────────────────────────────
@@ -508,6 +509,69 @@ impl ComposerWorker {
                     name,
                     bytes,
                 }
+            },
+
+            // ── Build from source ─────────────────────────────────
+            Command::BuildCores {
+                requests,
+            } => {
+                let total = requests.len();
+                let result = self.composer.install_built_cores(requests).await;
+                match result {
+                    Ok(maybe_failed) => {
+                        let failed = maybe_failed.unwrap_or_default();
+                        let successful = total.saturating_sub(failed.len());
+
+                        // Автосохраняем lock после сборки — даже при частичном успехе,
+                        // чтобы не потерять уже собранные элементы.
+                        if successful > 0
+                            && let Err(e) = self.composer.save_cores().await
+                        {
+                            tracing::error!(error = %e, "failed to save cores lock after build");
+                        }
+
+                        // Отправляем актуальный снимок ядер в UI
+                        self.send(Event::CoresItems(self.cores_snapshot())).await;
+
+                        Event::CoresBuilt(CoresBuiltResult {
+                            successful,
+                            failed,
+                        })
+                    },
+                    Err(fatal) => Event::Error(fatal),
+                }
+            },
+
+            Command::CheckBuildDeps => {
+                let platform = builder::detect();
+                match builder::deps::check_deps(&platform).await {
+                    Ok(status) => Event::BuildDepsStatus {
+                        missing: status.missing,
+                        install_command: status.install_command,
+                    },
+                    Err(e) => Event::Error(crate::error::ComposerError::Builder(e)),
+                }
+            },
+
+            Command::InstallBuildDeps => {
+                let platform = builder::detect();
+                let progress = builder::BuildProgress::noop();
+                let result = builder::deps::install_deps(&platform, &progress)
+                    .await
+                    .map_err(crate::error::ComposerError::Builder);
+                Event::BuildDepsInstalled(result)
+            },
+
+            Command::RemoveSource {
+                version,
+            } => match self.composer.remove_source(&version).await {
+                Ok(()) => {
+                    tracing::info!(version = %version, "source removed");
+                    Event::SourceRemoved {
+                        version,
+                    }
+                },
+                Err(e) => Event::Error(e),
             },
 
             // ── Lifecycle ────────────────────────────────────────

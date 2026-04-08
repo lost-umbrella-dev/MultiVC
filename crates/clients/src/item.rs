@@ -41,3 +41,18 @@ pub struct ItemDependence {
     /// auto bump: "^1.1" => auto update for any "1.1.x" versions
     pub version: Version,
 }
+
+/// Origin of an installed core — downloaded release or built from source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum CoreOrigin {
+    #[default]
+    Release,
+    Build,
+}
+
+/// Whether prebuilt release downloads are available on this platform.
+/// macOS releases don't work, so this is false on macOS.
+pub const RELEASE_AVAILABLE: bool = cfg!(not(target_os = "macos"));
+
+/// Whether building from source is available on this platform.
+pub const BUILD_AVAILABLE: bool = true;
