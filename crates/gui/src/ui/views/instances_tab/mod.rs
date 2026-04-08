@@ -203,7 +203,8 @@ pub fn render(
                 });
                 // Strip characters forbidden in paths on Windows/Linux/macOS
                 form.name.retain(|c: char| {
-                    !c.is_control() && !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
+                    !c.is_control()
+                        && !matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
                 });
 
                 form_row(ui, lang::t("form.description", lang), &mut form.description);

@@ -44,11 +44,8 @@ pub(super) fn installed_core_row(
                 .max(80.0);
 
             ui.add_sized([version_width, ui.available_height()], egui::Label::new(version));
-            ui.add_sized(
-                [hash_width, ui.available_height()],
-                egui::Label::new(hash).truncate(),
-            )
-            .on_hover_text(hash);
+            ui.add_sized([hash_width, ui.available_height()], egui::Label::new(hash).truncate())
+                .on_hover_text(hash);
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 // First button slot: create instance OR redownload/progress
