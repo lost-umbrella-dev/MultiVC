@@ -1,19 +1,16 @@
 use std::collections::HashMap;
-use std::path::Path;
 
 use chrono::{DateTime, Utc};
 use clients::Clients;
 use clients::hash::Hash;
 
-// пока что нет провайдеров для контент паков
-
 use crate::error::{ComposerError, Result};
 use crate::item::{LockItem, LockMap};
-// use crate::lock::content::ContentsLock;
 use crate::lock::core::CoresLock;
 use crate::lock::instance::Instance;
 use crate::lock::instances::{InstanceValidateReason, InstancesItem, InstancesLock, InstancesMap};
 use crate::lock::{Lock, ValidateReason};
+use crate::paths::AppPaths;
 
 // ── View structs ─────────────────────────────────────────────────────
 
@@ -50,6 +47,7 @@ pub mod error;
 pub mod item;
 pub mod lock;
 pub mod message;
+pub mod paths;
 pub mod progress;
 pub mod utils;
 pub mod worker;
@@ -67,35 +65,38 @@ pub struct Composer {
     pub(crate) clients: Clients,
     pub(crate) instances: InstancesLock,
     pub(crate) cores: CoresLock,
-    // pub(crate) contents: ContentsLock,
+    pub paths: AppPaths,
 }
 
 // ── Construction ─────────────────────────────────────────────────────
 
 impl Composer {
     /// Создаёт пустой State (свежая установка, тесты).
-    pub fn new(clients: Clients) -> Self {
+    pub fn new(
+        clients: Clients,
+        paths: AppPaths,
+    ) -> Self {
         Self {
             clients,
             instances: InstancesLock::default(),
-            cores: CoresLock {
-                items: LockMap::new(),
-            },
-            // contents: ContentsLock { items: LockMap::new() },
+            cores: CoresLock::default(),
+            paths,
         }
     }
 
     /// Загружает все lock-файлы с диска.
-    pub async fn load(clients: Clients) -> Result<Self> {
-        let instances = InstancesLock::load().await?;
-        let cores = CoresLock::load().await?;
-        // let contents = ContentsLock::load().await?;
+    pub async fn load(
+        clients: Clients,
+        paths: AppPaths,
+    ) -> Result<Self> {
+        let instances = InstancesLock::load(&paths.instances_dir.join("lock.toml")).await?;
+        let cores = CoresLock::load(&paths.cores_dir.join("lock.toml")).await?;
 
         Ok(Self {
             clients,
             instances,
             cores,
-            // contents,
+            paths,
         })
     }
 }
@@ -105,25 +106,19 @@ impl Composer {
 impl Composer {
     /// Сохраняет все lock-файлы на диск.
     pub async fn save(&self) -> Result<()> {
-        self.instances.save().await?;
-        self.cores.save().await?;
-        // self.contents.save().await?;
+        self.instances.save(&self.paths.instances_dir.join("lock.toml")).await?;
+        self.cores.save(&self.paths.cores_dir.join("lock.toml")).await?;
         Ok(())
     }
 
     /// Сохраняет только lock ядер.
     pub async fn save_cores(&self) -> Result<()> {
-        self.cores.save().await
+        self.cores.save(&self.paths.cores_dir.join("lock.toml")).await
     }
-
-    // /// Сохраняет только lock контент-паков.
-    // pub async fn save_contents(&self) -> Result<()> {
-    //     self.contents.save().await
-    // }
 
     /// Сохраняет только lock инстансов.
     pub async fn save_instances(&self) -> Result<()> {
-        self.instances.save().await
+        self.instances.save(&self.paths.instances_dir.join("lock.toml")).await
     }
 }
 
@@ -247,7 +242,7 @@ impl Composer {
             });
         }
 
-        let instance_dir = Path::new(InstancesLock::FOLDER).join(&name);
+        let instance_dir = self.paths.instances_dir.join(&name);
         tokio::fs::create_dir_all(&instance_dir).await?;
 
         // Записываем instance.toml
@@ -257,7 +252,7 @@ impl Composer {
 
         // Регистрируем в lock
         self.instances.items().insert(name, meta);
-        self.instances.save().await?;
+        self.instances.save(&self.paths.instances_dir.join("lock.toml")).await?;
 
         Ok(())
     }
@@ -275,7 +270,7 @@ impl Composer {
             });
         }
 
-        let config_path = Path::new(InstancesLock::FOLDER).join(name).join(INSTANCE_CONFIG_NAME);
+        let config_path = self.paths.instances_dir.join(name).join(INSTANCE_CONFIG_NAME);
 
         let bytes = tokio::fs::read(&config_path).await?;
         let instance: Instance = toml::from_slice(&bytes)?;
@@ -301,14 +296,14 @@ impl Composer {
         }
 
         // Перезаписываем instance.toml
-        let config_path = Path::new(InstancesLock::FOLDER).join(name).join(INSTANCE_CONFIG_NAME);
+        let config_path = self.paths.instances_dir.join(name).join(INSTANCE_CONFIG_NAME);
 
         let toml_bytes = toml::to_string_pretty(&config)?;
         tokio::fs::write(&config_path, toml_bytes).await?;
 
         // Обновляем метаданные в lock
         self.instances.items().insert(name.to_owned(), meta);
-        self.instances.save().await?;
+        self.instances.save(&self.paths.instances_dir.join("lock.toml")).await?;
 
         Ok(())
     }
@@ -323,7 +318,7 @@ impl Composer {
         &self,
         name: &str,
     ) -> Result<Option<InstancesItem>> {
-        self.instances.remove(name).await
+        self.instances.remove(&self.paths.instances_dir, name).await
     }
 }
 
@@ -390,7 +385,7 @@ impl Composer {
                 dependents,
             });
         }
-        self.cores.remove(hash).await
+        self.cores.remove(&self.paths.cores_dir, hash).await
     }
 }
 
@@ -399,17 +394,12 @@ impl Composer {
 impl Composer {
     /// Проверяет директорию ядер на соответствие lock-файлу.
     pub async fn validate_cores(&self) -> Result<Vec<ValidateReason>> {
-        self.cores.validate_dir().await
+        self.cores.validate_dir(&self.paths.cores_dir).await
     }
-
-    // /// Проверяет директорию контент-паков на соответствие lock-файлу.
-    // pub async fn validate_contents(&self) -> Result<Vec<ValidateReason>> {
-    //     self.contents.validate_dir().await
-    // }
 
     /// Проверяет директорию инстансов на соответствие lock-файлу.
     pub async fn validate_instances(&self) -> Result<Vec<InstanceValidateReason>> {
-        self.instances.validate_dir().await
+        self.instances.validate_dir(&self.paths.instances_dir).await
     }
 }
 
@@ -435,15 +425,13 @@ impl Composer {
 
         let instance = self.get_instance(name).await?;
 
-        let base = std::env::current_dir()?;
-        let instance_dir = base.join(InstancesLock::FOLDER).join(name);
+        let instance_dir = self.paths.instances_dir.join(name);
 
         Ok(vec![
             "--dir".to_owned(),
             instance_dir.to_string_lossy().into_owned(),
             "--res".to_owned(),
-            base.join("cores")
-                .join(instance.core_version.to_path_buf())
+            utils::hash::item_path(&self.paths.cores_dir, &instance.core_version)
                 .join("res")
                 .to_string_lossy()
                 .into_owned(),
@@ -471,10 +459,9 @@ impl Composer {
         }
 
         let instance = self.get_instance(name).await?;
-        let base = std::env::current_dir()?;
 
         // Абсолютный путь к исполняемому файлу ядра
-        let core_dir = base.join(utils::hash::item_path::<CoresLock>(&instance.core_version));
+        let core_dir = utils::hash::item_path(&self.paths.cores_dir, &instance.core_version);
         let exe_path = core_dir.join(downloads::core::executable::CANONICAL_NAME);
 
         if !tokio::fs::try_exists(&exe_path).await? {
@@ -484,10 +471,22 @@ impl Composer {
             });
         }
 
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let meta = tokio::fs::metadata(&exe_path).await?;
+            if meta.permissions().mode() & 0o111 == 0 {
+                return Err(ComposerError::CoreNotExecutable {
+                    name: name.to_owned(),
+                    exe_path,
+                });
+            }
+        }
+
         let args = self.build_launch_args(name).await?;
 
         // Рабочая директория — папка инстанса (абсолютный путь)
-        let instance_dir = base.join(InstancesLock::FOLDER).join(name);
+        let instance_dir = self.paths.instances_dir.join(name);
 
         let mut cmd = tokio::process::Command::new(&exe_path);
         cmd.args(&args);

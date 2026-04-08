@@ -16,6 +16,7 @@ use composer::{
     lock::ValidateReason,
     lock::instance::Instance,
     lock::instances::{InstanceValidateReason, InstancesItem},
+    paths::AppPaths,
 };
 
 // ── CLI определения ──────────────────────────────────────────────────
@@ -43,6 +44,9 @@ use composer::{
         Репозиторий: https://github.com/lost-umbrella-dev/MultiVC"
 )]
 struct Cli {
+    /// Принудительный portable mode: все данные хранятся рядом с exe
+    #[arg(long)]
+    portable: bool,
     #[command(subcommand)]
     command: Commands,
 }
@@ -182,9 +186,9 @@ fn print_instance_validate_reasons(
 }
 
 /// Создаёт `Clients` и загружает `Composer` с диска.
-async fn load_composer() -> Result<Composer, Box<dyn std::error::Error>> {
+async fn load_composer(paths: AppPaths) -> Result<Composer, Box<dyn std::error::Error>> {
     let clients = Clients::new(create_github_client()?);
-    Ok(Composer::load(clients).await?)
+    Ok(Composer::load(clients, paths).await?)
 }
 
 /// Ищет ядра по запросу: версия или префикс хэша.
@@ -234,6 +238,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let cli = Cli::parse();
+    let paths = AppPaths::resolve(cli.portable);
 
     match cli.command {
         // ── install ──────────────────────────────────────────────
@@ -253,7 +258,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Найдено: {} {} ({})", item.name, item.version, format_size(item.size),);
 
             // Создаём Composer и запускаем установку (без прогресс-бара)
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
             let request = DownloadRequest::new(item);
             let result = composer.install_cores(vec![request]).await?;
 
@@ -276,7 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // ── list ─────────────────────────────────────────────────
         Commands::List => {
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
             let cores = composer.cores_with_dependents().await?;
 
             if cores.is_empty() {
@@ -346,7 +351,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // ── validate ─────────────────────────────────────────────
         Commands::Validate => {
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
 
             let core_issues = composer.validate_cores().await?;
             let instance_issues = composer.validate_instances().await?;
@@ -367,7 +372,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Remove {
             query,
         } => {
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
             let matches = find_cores_by_query(composer.cores_items(), &query);
 
             match matches.len() {
@@ -406,7 +411,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // ── list-instances ───────────────────────────────────────
         Commands::ListInstances => {
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
             let details = composer.instances_with_details().await?;
 
             if details.is_empty() {
@@ -451,7 +456,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             core,
             description,
         } => {
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
 
             // Ищем ядро по запросу (версия или хэш)
             let matches = find_cores_by_query(composer.cores_items(), &core);
@@ -503,7 +508,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::RemoveInstance {
             name,
         } => {
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
 
             if !composer.instances_items().contains_key(&name) {
                 eprintln!("Инстанс «{name}» не найден");
@@ -520,7 +525,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Launch {
             name,
         } => {
-            let composer = load_composer().await?;
+            let composer = load_composer(paths.clone()).await?;
 
             println!("Запускаю инстанс «{name}»...");
             let mut child = composer.launch_instance(&name).await?;

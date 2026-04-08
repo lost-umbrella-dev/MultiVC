@@ -4,12 +4,11 @@
 
 use std::path::Path;
 
-use clients::{ProgressSink, hash::Hash, item::Item};
+use clients::hash::Hash;
 use tracing::instrument;
 
 use crate::{
     error::{ComposerError, Result},
-    lock::Lock,
     utils::{fs, hash},
 };
 
@@ -18,13 +17,13 @@ pub const PARALLELISM: usize = 8;
 
 /// Пара Item + per-item progress для параллельного скачивания.
 pub struct DownloadRequest {
-    pub item: Item,
-    pub progress: Option<Box<dyn ProgressSink>>,
+    pub item: clients::item::Item,
+    pub progress: Option<Box<dyn clients::ProgressSink>>,
 }
 
 impl DownloadRequest {
     /// Создаёт запрос без отслеживания прогресса.
-    pub fn new(item: Item) -> Self {
+    pub fn new(item: clients::item::Item) -> Self {
         Self {
             item,
             progress: None,
@@ -33,8 +32,8 @@ impl DownloadRequest {
 
     /// Создаёт запрос с per-item прогрессом.
     pub fn with_progress(
-        item: Item,
-        progress: Box<dyn ProgressSink>,
+        item: clients::item::Item,
+        progress: Box<dyn clients::ProgressSink>,
     ) -> Self {
         Self {
             item,
@@ -43,27 +42,25 @@ impl DownloadRequest {
     }
 }
 
-/// Коммитит распакованную staging-директорию в итоговое хранилище lock-а.
+/// Коммитит распакованную staging-директорию в итоговое хранилище.
 ///
 /// Если другая параллельная задача уже успела сохранить такую же директорию,
 /// и она валидна по тому же hash, операция считается успешной.
 #[instrument(
     name = "download.commit",
     level = "debug",
-    skip(extract_path, dir_hash),
+    skip(extract_path, dir_hash, base_dir),
     fields(
         hash = %dir_hash,
         final_path,
     ),
 )]
-pub async fn commit_extracted_dir<L>(
+pub async fn commit_extracted_dir(
     extract_path: &Path,
     dir_hash: &Hash,
-) -> Result<()>
-where
-    L: Lock,
-{
-    let final_path = hash::item_path::<L>(dir_hash);
+    base_dir: &Path,
+) -> Result<()> {
+    let final_path = hash::item_path(base_dir, dir_hash);
     tracing::Span::current().record("final_path", final_path.display().to_string());
 
     if tokio::fs::try_exists(&final_path).await? {

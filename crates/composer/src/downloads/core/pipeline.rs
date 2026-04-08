@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use chrono::Utc;
 use clients::ProgressSink;
 use clients::github::GithubClient;
@@ -10,8 +12,6 @@ use tracing::Instrument;
 use crate::downloads::{DownloadRequest, commit_extracted_dir};
 use crate::error::{ComposerError, Result};
 use crate::item::LockItem;
-use crate::lock::Lock;
-use crate::lock::core::CoresLock;
 use crate::utils::fs;
 
 use super::executable;
@@ -26,6 +26,7 @@ use super::executable;
 pub async fn download_and_prepare(
     client: &GithubClient,
     request: DownloadRequest,
+    cores_dir: &Path,
 ) -> std::result::Result<(Hash, LockItem), (Item, ComposerError)> {
     let DownloadRequest {
         item,
@@ -39,7 +40,7 @@ pub async fn download_and_prepare(
         item.size = item.size,
     );
 
-    match prepare_inner(client, &item, progress.as_deref()).instrument(span).await {
+    match prepare_inner(client, &item, progress.as_deref(), cores_dir).instrument(span).await {
         Ok(dir_hash) => {
             tracing::debug!(
                 name = %item.name,
@@ -81,10 +82,11 @@ async fn prepare_inner(
     client: &GithubClient,
     item: &Item,
     progress: Option<&dyn ProgressSink>,
+    cores_dir: &Path,
 ) -> Result<Hash> {
     // 1. Staging directory
     tracing::debug!("creating staging directory");
-    let folder = CoresLock::folder_name().to_path_buf();
+    let folder = cores_dir.to_path_buf();
     tokio::fs::create_dir_all(&folder).await?;
     let temp_dir = tokio::task::spawn_blocking(move || TempDir::new_in(folder))
         .await
@@ -189,7 +191,7 @@ async fn prepare_inner(
 
     // 6. Commit
     tracing::debug!(hash = %dir_hash, "committing to storage");
-    commit_extracted_dir::<CoresLock>(&content_dir, &dir_hash).await?;
+    commit_extracted_dir(&content_dir, &dir_hash, cores_dir).await?;
 
     Ok(dir_hash)
 }

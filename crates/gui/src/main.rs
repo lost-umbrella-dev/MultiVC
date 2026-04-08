@@ -8,11 +8,22 @@ mod app;
 mod ui;
 
 use app::App;
+use clap::Parser;
 use clients::{Clients, github::GithubClient};
 use composer::Composer;
+use composer::paths::AppPaths;
 use composer::worker::ComposerWorker;
 use tracing_subscriber::{EnvFilter, Layer, layer::SubscriberExt};
 use tracing_tree::HierarchicalLayer;
+
+/// GUI лаунчер для VoxelCore
+#[derive(Parser)]
+#[command(name = "multivc-gui", version)]
+struct Args {
+    /// Принудительный portable mode: все данные хранятся рядом с exe
+    #[arg(long)]
+    portable: bool,
+}
 
 /// Рендерит LOUM SVG-иконку в `IconData` для окна приложения.
 fn loum_icon() -> Option<eframe::egui::IconData> {
@@ -48,6 +59,9 @@ fn loum_icon() -> Option<eframe::egui::IconData> {
 }
 
 fn main() -> eframe::Result<()> {
+    let args = Args::parse();
+    let paths = AppPaths::resolve(args.portable);
+
     // ── Tracing ──────────────────────────────────────────────────
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("debug,winit=info"));
@@ -73,13 +87,14 @@ fn main() -> eframe::Result<()> {
         .expect("не удалось создать tokio runtime");
 
     // ── Composer ─────────────────────────────────────────────────
+    let paths_for_app = paths.clone();
     let composer = runtime.block_on(async {
         let github = GithubClient::new("MihailRis".to_owned(), "VoxelCore".to_owned())
             .expect("не удалось создать GithubClient");
         let clients = Clients::new(github);
 
         // Пытаемся загрузить lock-файлы; при первом запуске создадутся пустые
-        Composer::load(clients).await.expect("не удалось загрузить Composer")
+        Composer::load(clients, paths).await.expect("не удалось загрузить Composer")
     });
 
     // ── Worker ───────────────────────────────────────────────────
@@ -125,7 +140,7 @@ fn main() -> eframe::Result<()> {
         native_options,
         Box::new(move |cc| {
             egui_extras::install_image_loaders(&cc.egui_ctx);
-            Ok(Box::new(App::new(handle, rt_for_app)))
+            Ok(Box::new(App::new(handle, rt_for_app, paths_for_app)))
         }),
     );
 

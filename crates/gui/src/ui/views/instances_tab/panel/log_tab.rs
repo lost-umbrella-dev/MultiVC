@@ -1,5 +1,7 @@
 //! Log tab for the instance panel.
 
+use std::path::Path;
+
 use eframe::egui;
 use egui_toast::Toasts;
 
@@ -8,16 +10,18 @@ use crate::ui::lang::{self, Lang};
 use crate::ui::state::InstancesTabState;
 use crate::ui::widgets::open_folder;
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn render(
     ui: &mut egui::Ui,
     state: &mut InstancesTabState,
     name: &str,
     is_running: bool,
     pid: Option<u32>,
+    instances_dir: &Path,
     toasts_out: &mut Toasts,
     lang: Lang,
 ) {
-    let log_path = std::path::Path::new("instances").join(name).join("latest.log");
+    let log_path = instances_dir.join(name).join("latest.log");
 
     // Header: status + open file button + log filters
     ui.horizontal(|ui| {

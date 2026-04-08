@@ -133,7 +133,48 @@ main() → Composer::load()
 
 ---
 
-## Граф зависимостей
+## Пути и хранение данных
+
+### `AppPaths`
+
+Структура `AppPaths` (в `composer/src/paths.rs`) инкапсулирует пути к конфигу и данным:
+
+```rust
+pub struct AppPaths {
+    pub config_dir: PathBuf,  // settings.toml
+    pub data_dir: PathBuf,    // cores/, instances/
+}
+```
+
+`Default` реализован через крейт `dirs`: использует платформенные стандарты (XDG на Linux, APPDATA/LOCALAPPDATA на Windows, `Application Support` на macOS).
+
+### Разделение конфига и данных
+
+| Тип     | Windows                   | Linux                    | macOS                                    |
+|---------|---------------------------|--------------------------|------------------------------------------|
+| Конфиг  | `%APPDATA%\MultiVC\`      | `~/.config/MultiVC/`     | `~/Library/Application Support/MultiVC/` |
+| Данные  | `%LOCALAPPDATA%\MultiVC\` | `~/.local/share/MultiVC/`| `~/Library/Application Support/MultiVC/` |
+
+- **Конфиг** (`config_dir`) — roaming на Windows (`%APPDATA%`), синхронизируется между машинами.
+- **Данные** (`data_dir`) — локально (`%LOCALAPPDATA%`), содержит бинарники ядер и файлы инстансов.
+
+### Portable-режим
+
+Активируется автоматически, если `settings.toml` обнаружен рядом с исполняемым файлом. Принудительный запуск: флаг `--portable` (CLI) или аналогичная логика при старте GUI.
+
+В portable-режиме `config_dir` и `data_dir` равны директории исполняемого файла — всё хранится рядом с ним.
+
+Релизные архивы поставляются с `settings.toml` рядом с бинарником, поэтому portable-режим активен из коробки.
+
+### Пользовательские пути
+
+Секция `[paths]` в `settings.toml` позволяет переопределить `config_dir` и/или `data_dir` вручную. Применяется поверх любого режима определения путей.
+
+### Передача путей в `Lock` и `Composer`
+
+`Composer::load()` принимает `AppPaths` и передаёт `data_dir` в `CoresLock` и `InstancesLock`. Lock-файлы размещаются как `{data_dir}/cores/lock.toml` и `{data_dir}/instances/lock.toml`. Настройки GUI читаются из `{config_dir}/settings.toml`.
+
+
 
 ```text
 ┌───────┐              ┌───────┐

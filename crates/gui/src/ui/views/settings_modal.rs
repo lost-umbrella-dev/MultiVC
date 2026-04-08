@@ -3,6 +3,8 @@
 use eframe::egui;
 use eframe::egui::Align2;
 
+use composer::paths::AppPaths;
+
 use crate::ui::state::SettingsState;
 
 /// Renders the settings modal window.
@@ -13,6 +15,7 @@ pub fn render(
     state: &mut SettingsState,
     cores_count: usize,
     instances_count: usize,
+    paths: &AppPaths,
     toasts: &mut egui_toast::Toasts,
 ) {
     if !state.open {
@@ -49,7 +52,7 @@ pub fn render(
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     crate::ui::widgets::open_folder_button(
                         ui,
-                        "cores",
+                        &paths.cores_dir,
                         crate::ui::lang::t("settings.open_cores", lang),
                         toasts,
                     );
@@ -66,7 +69,7 @@ pub fn render(
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     crate::ui::widgets::open_folder_button(
                         ui,
-                        "instances",
+                        &paths.instances_dir,
                         crate::ui::lang::t("settings.open_instances", lang),
                         toasts,
                     );
@@ -79,7 +82,7 @@ pub fn render(
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     crate::ui::widgets::open_folder_button(
                         ui,
-                        ".",
+                        &paths.root_dir,
                         crate::ui::lang::t("settings.open_root", lang),
                         toasts,
                     );

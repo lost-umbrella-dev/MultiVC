@@ -8,9 +8,11 @@ use egui_toast::Toasts;
 
 use composer::error::ComposerError;
 use composer::message::{Command, CoresInstalledResult, Event};
+use composer::paths::AppPaths;
 use composer::worker::WorkerHandle;
 
 use crate::ui::Tab;
+use crate::ui::lang::{self, Lang};
 use crate::ui::state::UiState;
 use crate::ui::toasts;
 
@@ -31,78 +33,92 @@ impl App {
     pub fn new(
         handle: WorkerHandle,
         runtime: tokio::runtime::Runtime,
+        paths: AppPaths,
     ) -> Self {
         handle.try_send(Command::GetCoresItems);
         handle.try_send(Command::GetInstancesItems);
+        handle.try_send(Command::ValidateCores);
+
+        let mut state = UiState::new(paths);
+        state.cores.busy = true;
 
         Self {
             handle,
             runtime,
             current_tab: Tab::default(),
-            state: UiState::default(),
+            state,
         }
     }
 
-    fn drain_and_apply_events(
-        &mut self,
+    pub fn drain_and_apply_events(
+        state: &mut UiState,
+        handle: &mut WorkerHandle,
         toasts: &mut Toasts,
     ) {
-        let events = self.handle.drain_events();
+        let events = handle.drain_events();
+        let lang = state.settings.lock.language;
         for event in events {
-            self.apply_event(event, toasts);
+            Self::apply_event(state, handle, event, toasts, lang);
         }
     }
 
     fn apply_event(
-        &mut self,
+        state: &mut UiState,
+        handle: &WorkerHandle,
         event: Event,
         toasts: &mut Toasts,
+        lang: Lang,
     ) {
         match event {
             Event::Saved(Ok(())) => {
-                self.state.cores.busy = false;
-                self.state.instances.busy = false;
-                toasts::success(toasts, "All lock files saved");
+                state.cores.busy = false;
+                state.instances.busy = false;
+                toasts::success(toasts, lang::t("toast.locks_saved", lang));
             },
             Event::Saved(Err(e)) => {
-                self.state.cores.busy = false;
-                self.state.instances.busy = false;
-                toasts::error(toasts, format!("Save error: {e}"));
+                state.cores.busy = false;
+                state.instances.busy = false;
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.save_err", lang)));
             },
 
             Event::CoresSaved(Ok(())) => {
-                self.state.cores.busy = false;
-                toasts::success(toasts, "Cores lock saved");
+                state.cores.busy = false;
+                toasts::success(toasts, lang::t("toast.cores_saved", lang));
             },
             Event::CoresSaved(Err(e)) => {
-                self.state.cores.busy = false;
-                toasts::error(toasts, format!("Cores save error: {e}"));
+                state.cores.busy = false;
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.cores_save_err", lang)));
             },
 
             Event::InstancesSaved(Ok(())) => {
-                self.state.instances.busy = false;
-                toasts::success(toasts, "Instances lock saved");
+                state.instances.busy = false;
+                toasts::success(toasts, lang::t("toast.instances_saved", lang));
             },
             Event::InstancesSaved(Err(e)) => {
-                self.state.instances.busy = false;
-                toasts::error(toasts, format!("Instances save error: {e}"));
+                state.instances.busy = false;
+                toasts::error(
+                    toasts,
+                    format!("{}: {e}", lang::t("toast.instances_save_err", lang)),
+                );
             },
 
             Event::CoresInstalled(CoresInstalledResult {
                 successful,
                 failed,
             }) => {
-                let installed_keys: Vec<String> = self
-                    .state
+                let installed_keys: Vec<String> = state
                     .cores
                     .installed
                     .iter()
                     .map(|(_, li)| format!("{}/{}", li.item.name, li.item.version))
                     .collect();
-                self.state.cores.downloads.complete_installed(&installed_keys);
+                state.cores.downloads.complete_installed(&installed_keys);
 
                 if failed.is_empty() {
-                    toasts::success(toasts, format!("Installed cores: {successful}"));
+                    toasts::success(
+                        toasts,
+                        format!("{}: {successful}", lang::t("toast.cores_installed", lang)),
+                    );
                 } else {
                     let errors: Vec<String> = failed
                         .iter()
@@ -110,37 +126,56 @@ impl App {
                         .collect();
                     toasts::error(
                         toasts,
-                        format!("Installed: {successful}, errors:\n{}", errors.join("\n")),
+                        format!(
+                            "{}: {successful}, {}:\n{}",
+                            lang::t("toast.cores_installed", lang),
+                            lang::t("toast.cores_install_err", lang),
+                            errors.join("\n")
+                        ),
                     );
+                }
+
+                // Re-validate after reinstall to refresh validation state
+                if successful > 0 {
+                    handle.try_send(Command::ValidateCores);
                 }
             },
 
             Event::CoresValidated(Ok(reasons)) => {
-                self.state.cores.busy = false;
+                state.cores.busy = false;
                 if reasons.is_empty() {
-                    toasts::success(toasts, "Cores: all valid");
+                    toasts::success(toasts, lang::t("toast.cores_valid", lang));
                 } else {
-                    toasts::warning(toasts, format!("Cores: {} issue(s) found", reasons.len()));
+                    toasts::warning(
+                        toasts,
+                        format!("{}: {}", lang::t("toast.cores_issues", lang), reasons.len()),
+                    );
                 }
-                self.state.cores.validation = reasons;
+                state.cores.validation = reasons;
             },
             Event::CoresValidated(Err(e)) => {
-                self.state.cores.busy = false;
-                toasts::error(toasts, format!("Cores validation error: {e}"));
+                state.cores.busy = false;
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.cores_valid_err", lang)));
             },
 
             Event::InstancesValidated(Ok(reasons)) => {
-                self.state.instances.busy = false;
+                state.instances.busy = false;
                 if reasons.is_empty() {
-                    toasts::success(toasts, "Instances: all valid");
+                    toasts::success(toasts, lang::t("toast.instances_valid", lang));
                 } else {
-                    toasts::warning(toasts, format!("Instances: {} issue(s) found", reasons.len()));
+                    toasts::warning(
+                        toasts,
+                        format!("{}: {}", lang::t("toast.instances_issues", lang), reasons.len()),
+                    );
                 }
-                self.state.instances.validation = reasons;
+                state.instances.validation = reasons;
             },
             Event::InstancesValidated(Err(e)) => {
-                self.state.instances.busy = false;
-                toasts::error(toasts, format!("Instances validation error: {e}"));
+                state.instances.busy = false;
+                toasts::error(
+                    toasts,
+                    format!("{}: {e}", lang::t("toast.instances_valid_err", lang)),
+                );
             },
 
             Event::CoreRemoved {
@@ -148,13 +183,21 @@ impl App {
                 item,
             } => {
                 if let Some(lock_item) = &item {
-                    self.state.cores.installed.retain(|(h, _)| h != &hash);
+                    state.cores.installed.retain(|(h, _)| h != &hash);
                     toasts::success(
                         toasts,
-                        format!("Core removed: {} {}", lock_item.item.name, lock_item.item.version),
+                        format!(
+                            "{}: {} {}",
+                            lang::t("toast.core_removed", lang),
+                            lock_item.item.name,
+                            lock_item.item.version
+                        ),
                     );
                 } else {
-                    toasts::warning(toasts, format!("Core not found: {hash}"));
+                    toasts::warning(
+                        toasts,
+                        format!("{}: {hash}", lang::t("toast.core_not_found", lang)),
+                    );
                 }
             },
 
@@ -162,103 +205,152 @@ impl App {
                 name,
                 item,
             } => {
-                self.state.instances.busy_instances.remove(&name);
+                state.instances.busy_instances.remove(&name);
                 if item.is_some() {
-                    self.state.instances.installed.retain(|(n, _)| n != &name);
-                    toasts::success(toasts, format!("Instance removed: {name}"));
+                    state.instances.installed.retain(|(n, _)| n != &name);
+                    toasts::success(
+                        toasts,
+                        format!("{}: {name}", lang::t("toast.instance_removed", lang)),
+                    );
                 } else {
-                    toasts::warning(toasts, format!("Instance not found: {name}"));
+                    toasts::warning(
+                        toasts,
+                        format!("{}: {name}", lang::t("toast.instance_not_found", lang)),
+                    );
                 }
             },
 
             Event::InstanceCreated(Ok(name)) => {
-                toasts::success(toasts, format!("Instance created: {name}"));
+                toasts::success(
+                    toasts,
+                    format!("{}: {name}", lang::t("toast.instance_created", lang)),
+                );
             },
             Event::InstanceCreated(Err(e)) => {
-                toasts::error(toasts, format!("Instance creation error: {e}"));
+                toasts::error(
+                    toasts,
+                    format!("{}: {e}", lang::t("toast.instance_create_err", lang)),
+                );
             },
 
             Event::InstanceInfo(Ok(instance)) => {
-                self.state.instances.viewing = Some(instance);
+                state.instances.viewing = Some(instance);
             },
             Event::InstanceInfo(Err(e)) => {
-                toasts::error(toasts, format!("Instance info error: {e}"));
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.instance_info_err", lang)));
             },
 
             Event::InstanceEdited(Ok(name)) => {
-                toasts::success(toasts, format!("Instance updated: {name}"));
+                toasts::success(
+                    toasts,
+                    format!("{}: {name}", lang::t("toast.instance_updated", lang)),
+                );
             },
             Event::InstanceEdited(Err(e)) => {
-                toasts::error(toasts, format!("Instance update error: {e}"));
+                toasts::error(
+                    toasts,
+                    format!("{}: {e}", lang::t("toast.instance_update_err", lang)),
+                );
             },
 
             Event::InstanceLaunched {
                 name,
                 result: Ok(pid),
             } => {
-                self.state.instances.running_instances.insert(name.clone(), pid);
+                state.instances.running_instances.insert(name.clone(), pid);
                 if let Some((_n, meta)) =
-                    self.state.instances.installed.iter_mut().find(|(n, _)| n == &name)
+                    state.instances.installed.iter_mut().find(|(n, _)| n == &name)
                 {
                     meta.last_launch = Some(chrono::Utc::now());
                 }
-                toasts::success(toasts, format!("Launched: {name} (PID {pid})"));
+                toasts::success(
+                    toasts,
+                    format!("{}: {name} (PID {pid})", lang::t("toast.instance_launched", lang)),
+                );
             },
             Event::InstanceLaunched {
                 name,
                 result: Err(e),
             } => {
-                toasts::error(toasts, format!("Launch failed ({name}): {e}"));
+                toasts::error(
+                    toasts,
+                    format!("{} ({name}): {e}", lang::t("toast.instance_launch_err", lang)),
+                );
             },
 
             Event::InstanceStopped {
                 name,
                 status,
             } => {
-                self.state.instances.running_instances.remove(&name);
+                state.instances.running_instances.remove(&name);
                 match status {
-                    Some(0) => toasts::info(toasts, format!("Instance stopped: {name}")),
+                    Some(0) => toasts::info(
+                        toasts,
+                        format!("{}: {name}", lang::t("toast.instance_stopped", lang)),
+                    ),
                     Some(code) => toasts::warning(
                         toasts,
-                        format!("Instance stopped: {name} (exit code {code})"),
+                        format!(
+                            "{}: {name} ({} {code})",
+                            lang::t("toast.instance_stopped", lang),
+                            lang::t("toast.instance_stopped_code", lang)
+                        ),
                     ),
-                    None => toasts::warning(toasts, format!("Instance stopped: {name} (killed)")),
+                    None => toasts::warning(
+                        toasts,
+                        format!(
+                            "{}: {name} ({})",
+                            lang::t("toast.instance_stopped", lang),
+                            lang::t("toast.instance_stopped_killed", lang)
+                        ),
+                    ),
                 }
             },
 
             Event::CoresFetched(Ok(items)) => {
-                self.state.cores.busy = false;
-                toasts::info(toasts, format!("Available versions: {}", items.len()));
-                self.state.cores.available = items;
+                state.cores.busy = false;
+                toasts::info(
+                    toasts,
+                    format!("{}: {}", lang::t("toast.cores_fetched", lang), items.len()),
+                );
+                state.cores.available = items;
             },
             Event::CoresFetched(Err(e)) => {
-                self.state.cores.busy = false;
-                toasts::error(toasts, format!("Fetch error: {e}"));
+                state.cores.busy = false;
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.fetch_err", lang)));
             },
 
             Event::CoreFetched(Ok(Some(item))) => {
-                toasts::info(toasts, format!("Found: {} {}", item.name, item.version));
+                toasts::info(
+                    toasts,
+                    format!(
+                        "{}: {} {}",
+                        lang::t("toast.core_found", lang),
+                        item.name,
+                        item.version
+                    ),
+                );
             },
             Event::CoreFetched(Ok(None)) => {
-                toasts::warning(toasts, "Version not found");
+                toasts::warning(toasts, lang::t("toast.version_not_found", lang));
             },
             Event::CoreFetched(Err(e)) => {
-                toasts::error(toasts, format!("Fetch version error: {e}"));
+                toasts::error(toasts, format!("{}: {e}", lang::t("toast.fetch_version_err", lang)));
             },
 
             Event::CoresItems(items) => {
-                self.state.cores.installed = items;
+                state.cores.installed = items;
             },
             Event::InstancesItems(items, core_dependents) => {
-                self.state.cores.core_dependents = core_dependents;
-                self.state.instances.installed = items;
+                state.cores.core_dependents = core_dependents;
+                state.instances.installed = items;
             },
 
             Event::InstanceDirSize {
                 name,
                 bytes,
             } => {
-                if let Some(ref mut panel) = self.state.instances.instance_panel
+                if let Some(ref mut panel) = state.instances.instance_panel
                     && panel.name == name
                 {
                     panel.dir_size = Some(bytes);
@@ -271,14 +363,17 @@ impl App {
                     dependents,
                 } => {
                     let names = dependents.join(", ");
-                    toasts::error(toasts, format!("Cannot delete: used by instance(s): {names}"));
+                    toasts::error(
+                        toasts,
+                        format!("{}: {names}", lang::t("toast.core_in_use", lang)),
+                    );
                 },
                 _ => {
-                    toasts::error(toasts, format!("Fatal error: {e}"));
+                    toasts::error(toasts, format!("{}: {e}", lang::t("toast.fatal_err", lang)));
                 },
             },
             Event::ShutdownComplete => {
-                toasts::info(toasts, "Background worker stopped");
+                toasts::info(toasts, lang::t("toast.worker_stopped", lang));
             },
         }
     }
@@ -291,7 +386,7 @@ impl App {
         let mut args = crate::ui::RenderArgs {
             current_tab: &mut self.current_tab,
             state: &mut self.state,
-            handle: &self.handle,
+            handle: &mut self.handle,
         };
         crate::ui::render_ui(ui, &mut args);
     }
@@ -349,11 +444,7 @@ impl eframe::App for App {
             }
         }
 
-        // Drain events
-        let mut toasts_instance = crate::ui::toasts::create_toasts();
-        self.drain_and_apply_events(&mut toasts_instance);
-
-        // Render UI
+        // Render UI (includes event drain + toasts)
         self.call_render_ui(ui);
     }
 
@@ -363,6 +454,6 @@ impl eframe::App for App {
     ) {
         tracing::info!("sending Shutdown to worker");
         self.handle.try_send(Command::Shutdown);
-        let _ = self.state.settings.lock.save();
+        let _ = self.state.settings.lock.save(&self.state.settings.path);
     }
 }

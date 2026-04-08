@@ -44,11 +44,6 @@ pub struct InstancesLock {
 }
 
 impl InstancesLock {
-    /// Путь к lock-файлу.
-    const FILE_PATH: &str = "instances/lock.toml";
-    /// Папка инстансов.
-    pub const FOLDER: &str = "instances";
-
     fn span() -> Span {
         tracing::info_span!("lock", r#type = "instances")
     }
@@ -61,16 +56,18 @@ impl InstancesLock {
     /// Загружает lock-файл с диска.
     ///
     /// Если файл не найден — возвращает `Self::default()` и сохраняет на диск.
-    pub async fn load() -> Result<Self> {
+    pub async fn load(lock_file: &Path) -> Result<Self> {
         let span = tracing::debug_span!(
             parent: &Self::span(),
             "lock.load",
-            file = Self::FILE_PATH,
+            file = %lock_file.display(),
         );
 
-        async {
+        let lock_file = lock_file.to_path_buf();
+
+        async move {
             tracing::debug!("loading instances lock file");
-            match tokio::fs::read(Self::FILE_PATH).await {
+            match tokio::fs::read(&lock_file).await {
                 Ok(bytes) => {
                     let lock: Self = toml::from_slice(&bytes)?;
                     tracing::debug!(items = lock.items.len(), "instances lock loaded");
@@ -79,7 +76,7 @@ impl InstancesLock {
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                     tracing::debug!("instances lock not found, creating default");
                     let lock = Self::default();
-                    lock.save().await?;
+                    lock.save(&lock_file).await?;
                     Ok(lock)
                 },
                 Err(e) => Err(e.into()),
@@ -90,23 +87,28 @@ impl InstancesLock {
     }
 
     /// Сохраняет lock-файл на диск.
-    pub async fn save(&self) -> Result<()> {
+    pub async fn save(
+        &self,
+        lock_file: &Path,
+    ) -> Result<()> {
         let span = tracing::debug_span!(
             parent: &Self::span(),
             "lock.save",
-            file = Self::FILE_PATH,
+            file = %lock_file.display(),
             items = self.items.len(),
         );
 
-        async {
+        let lock_file = lock_file.to_path_buf();
+
+        async move {
             tracing::debug!("saving instances lock file");
 
-            if let Some(parent) = Path::new(Self::FILE_PATH).parent() {
+            if let Some(parent) = lock_file.parent() {
                 tokio::fs::create_dir_all(parent).await?;
             }
 
             let bytes = toml::to_string_pretty(self)?;
-            tokio::fs::write(Self::FILE_PATH, bytes).await?;
+            tokio::fs::write(&lock_file, bytes).await?;
             tracing::debug!("instances lock saved");
             Ok(())
         }
@@ -120,6 +122,7 @@ impl InstancesLock {
     /// Lock-файл **не** сохраняется автоматически.
     pub async fn remove(
         &self,
+        dir: &Path,
         name: &str,
     ) -> Result<Option<InstancesItem>> {
         let span = tracing::debug_span!(
@@ -128,13 +131,16 @@ impl InstancesLock {
             name = name,
         );
 
-        async {
-            let removed = self.items.remove(name).map(|(_, item)| item);
+        let dir = dir.to_path_buf();
+        let name = name.to_owned();
+
+        async move {
+            let removed = self.items.remove(&name).map(|(_, item)| item);
 
             if removed.is_some() {
                 tracing::debug!("instance removed from lock");
 
-                let path = Path::new(Self::FOLDER).join(name);
+                let path = dir.join(&name);
                 if tokio::fs::try_exists(&path).await? {
                     tokio::fs::remove_dir_all(&path).await?;
                     tracing::debug!(path = %path.display(), "instance directory removed");
@@ -151,16 +157,21 @@ impl InstancesLock {
 
     /// Проверяет наличие папок инстансов на диске.
     ///
-    /// Для каждого инстанса в lock проверяет, существует ли папка `instances/{name}`.
+    /// Для каждого инстанса в lock проверяет, существует ли папка.
     /// Удаляет из lock записи без папок и возвращает причины.
-    pub async fn validate_dir(&self) -> Result<Vec<InstanceValidateReason>> {
+    pub async fn validate_dir(
+        &self,
+        dir: &Path,
+    ) -> Result<Vec<InstanceValidateReason>> {
         let span = tracing::info_span!(
             parent: &Self::span(),
             "lock.validate_dir",
             items = self.items.len(),
         );
 
-        async {
+        let dir = dir.to_path_buf();
+
+        async move {
             let entries: Vec<_> = self
                 .items
                 .iter()
@@ -174,7 +185,7 @@ impl InstancesLock {
             let valid = InstancesMap::new();
 
             for (name, meta) in entries {
-                let path = Path::new(Self::FOLDER).join(&name);
+                let path = dir.join(&name);
                 match tokio::fs::metadata(&path).await {
                     Ok(m) if m.is_dir() => {
                         tracing::debug!(name = %name, "instance directory found");

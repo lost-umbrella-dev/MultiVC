@@ -13,6 +13,7 @@ use eframe::egui;
 
 use composer::worker::WorkerHandle;
 
+use crate::App;
 use state::{InstanceForm, UiState};
 
 // ── Navigation ──────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ pub fn format_size(bytes: u64) -> String {
 pub struct RenderArgs<'a> {
     pub current_tab: &'a mut Tab,
     pub state: &'a mut UiState,
-    pub handle: &'a WorkerHandle,
+    pub handle: &'a mut WorkerHandle,
 }
 
 /// Main UI render function — called by the host each frame.
@@ -61,6 +62,9 @@ pub fn render_ui(
     args: &mut RenderArgs,
 ) {
     let mut toasts_instance = toasts::create_toasts();
+
+    // Drain worker events first — updates state before render
+    App::drain_and_apply_events(args.state, args.handle, &mut toasts_instance);
 
     let ctx = ui.ctx().clone();
 
@@ -102,6 +106,7 @@ pub fn render_ui(
                 &mut args.state.instances,
                 args.handle,
                 &args.state.cores.installed,
+                &args.state.paths.instances_dir,
                 &mut toasts_instance,
                 lang,
             );
@@ -114,6 +119,7 @@ pub fn render_ui(
         &mut args.state.settings,
         args.state.cores.installed.len(),
         args.state.instances.installed.len(),
+        &args.state.paths,
         &mut toasts_instance,
     );
 

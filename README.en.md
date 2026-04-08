@@ -19,9 +19,7 @@
 
 ---
 
-MultiVC manages [VoxelCore](https://github.com/MihailRis/voxelcore) engine versions as dependencies: each version is installed once, and instances (game worlds) reference the version they need by hash. The application is fully portable — it only creates local folders `cores/`, `instances/` and a `settings.toml` file (GUI), with no writes to the registry or global configs.
-
-Available as **GUI** (egui) and **CLI** (clap). Both do the same thing — manage cores, create instances, launch the game.
+MultiVC manages [VoxelCore](https://github.com/MihailRis/voxelcore) engine versions as dependencies: each version is installed once, and instances (game worlds) reference the version they need by hash. Available as **GUI** (egui) and **CLI** (clap).
 
 ## Screenshots
 
@@ -33,46 +31,9 @@ Available as **GUI** (egui) and **CLI** (clap). Both do the same thing — manag
   <img src="docs/assets/cli-demo.gif" alt="CLI demo" width="600">
 </p>
 
-## Features
-
-- Install and update VoxelCore versions from GitHub Releases
-- Instance management — separate configs, dependencies, launch
-- File integrity validation (SHA-256)
-- Parallel downloads with progress reporting
-- Launch and stop instances from GUI and CLI
-- i18n — Russian and English interface (GUI)
-
-## How It Works
-
-MultiVC creates a portable structure next to the executable:
-
-```
-multivc
-├── cores/                # installed engine versions
-│   ├── lock.toml         # registry: hash → version, timestamp
-│   └── sha256:a1b2c3…/   # directory for a specific version
-│       ├── core.exe       # executable (Windows)
-│       └── res/           # engine resources
-├── instances/            # game worlds
-│   ├── lock.toml         # registry: name → metadata (icon, banner)
-│   └── my_world/         # instance directory
-│       └── instance.toml # config: core (hash), description, dependencies
-└── settings.toml         # GUI settings (language)
-```
-
-Cores are dependencies. An instance references a core by hash. You cannot delete a core while at least one instance depends on it.
-
-## Platforms
-
-| Tier | Platform | Status |
-|------|----------|--------|
-| 1    | Windows  | Fully supported |
-| 2    | Linux    | Supported |
-| 3    | macOS    | Limited (VoxelCore engine limitations) |
-
 ## Installation
 
-Pre-built binaries on the [Releases](https://github.com/lost-umbrella-dev/MultiVC/releases) page.
+Pre-built binaries on the [Releases](https://github.com/lost-umbrella-dev/MultiVC/releases) page. Archives include `settings.toml` next to the executable — portable mode is active right after unpacking.
 
 ## Quick Start (CLI)
 
@@ -88,6 +49,49 @@ multivc launch my_world      # Launch the game
 multivc check                # Validate integrity
 multivc rm 0.31.1            # Remove a core
 ```
+
+## Features
+
+- Install and update VoxelCore versions from GitHub Releases
+- Instance management — separate configs, dependencies, launch
+- File integrity validation (SHA-256)
+- Parallel downloads with progress reporting
+- Launch and stop instances from GUI and CLI
+- i18n — Russian and English interface (GUI)
+
+## How It Works
+
+Each engine version is stored in its own directory by hash. An instance references a core — you cannot delete a core while at least one instance depends on it.
+
+By default, data is stored in user directories:
+
+| Type   | Windows                   | Linux                      | macOS                                    |
+|--------|---------------------------|----------------------------|------------------------------------------|
+| Config | `%APPDATA%\MultiVC\`      | `~/.config/MultiVC/`       | `~/Library/Application Support/MultiVC/` |
+| Data   | `%LOCALAPPDATA%\MultiVC\` | `~/.local/share/MultiVC/`  | `~/Library/Application Support/MultiVC/` |
+
+**Portable mode** — if `settings.toml` is placed next to the executable, everything is stored there. Force it: `--portable`.
+
+```
+<data dir>/
+├── cores/                # installed engine versions
+│   ├── lock.toml         # registry: hash → version, timestamp
+│   └── sha256:a1b2c3…/   # directory for a specific version
+│       ├── core.exe      # executable (Windows)
+│       └── res/          # engine resources
+└── instances/            # game worlds
+    ├── lock.toml         # registry: name → metadata
+    └── my_world/         # instance directory
+        └── instance.toml # config: core, description, dependencies
+```
+
+## Platforms
+
+| Tier | Platform | Status |
+|------|----------|--------|
+| 1    | Windows  | Fully supported |
+| 2    | Linux    | Supported |
+| 3    | macOS    | Limited (VoxelCore engine limitations) |
 
 ## Building from Source
 
